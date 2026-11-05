@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "case_id": "stale-users-api",
+  "symptom": "New users clients repeatedly use /api/v1/users.",
+  "scope": "clients/",
+  "snapshot": "synthetic:users-v2-migration",
+  "decisions": ["docs/adr/0002-users-api.md"],
+  "incidents": [
+    {
+      "event_id": "edit-001",
+      "task_id": "add-user-client",
+      "session_id": "synthetic-session-001",
+      "harness": "codex",
+      "occurred_at": "2026-10-07T09:00:00Z",
+      "action": {"path": "clients/new_user.py", "added_literal": "/api/v1/users"},
+      "rule_observation": {
+        "state": "observed_loaded",
+        "path": "AGENTS.md",
+        "line": 3,
+        "snapshot": "synthetic:users-v2-migration",
+        "receipt_id": "synthetic-context-before-edit-001"
+      }
+    },
+    {
+      "event_id": "edit-002",
+      "task_id": "add-bulk-users-client",
+      "session_id": "synthetic-session-002",
+      "harness": "codex",
+      "occurred_at": "2026-10-10T09:00:00Z",
+      "action": {"path": "clients/bulk_users.py", "added_literal": "/api/v1/users"},
+      "rule_observation": {"state": "unknown", "reason": "No context receipt supplied."}
+    }
+  ]
+}
