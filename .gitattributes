@@ -1,0 +1,3 @@
+# Preserve the bytes required by the patch example and line-ending fixture.
+examples/stale-users-api/proposal.diff -text -whitespace
+tests/fixtures/f02/project/docs/crlf.md -text whitespace=cr-at-eol
