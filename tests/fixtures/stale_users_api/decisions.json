@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "project_id": "synthetic",
+  "rules": [
+    {
+      "rule_id": "rule-v1",
+      "source_ref": {
+        "relative_path": "AGENTS.md",
+        "sha256": "4d74b89868bdf1c1b0b00113707466e136868947b683eac7c675f3b73085d6c7",
+        "line_start": 3,
+        "line_end": 3
+      },
+      "text": "- New clients must use `/api/v1/users`; keep tests.",
+      "text_sha256": "d1cfa224813caef754a2374d00446d0cdbf3427bc0ed9576366d91d7e7fcc41b",
+      "scope": {
+        "include_prefixes": [
+          "clients"
+        ],
+        "exclude_prefixes": []
+      },
+      "harness": "codex",
+      "interpretation_status": "structured_confirmed",
+      "confirmation_ref": "confirm-rule",
+      "constraints": [
+        {
+          "constraint_id": "endpoint",
+          "subject": "endpoint",
+          "operator": "equals",
+          "value": "/api/v1/users",
+          "conditions": {},
+          "span": {
+            "start": 2,
+            "end": 38
+          }
+        },
+        {
+          "constraint_id": "tests",
+          "subject": "test_required",
+          "operator": "equals",
+          "value": true,
+          "conditions": {},
+          "span": {
+            "start": 40,
+            "end": 51
+          }
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "decision_id": "decision-v2",
+      "status": "accepted",
+      "scope": {
+        "include_prefixes": [
+          "clients"
+        ],
+        "exclude_prefixes": []
+      },
+      "effective_from": "2026-10-01T00:00:00Z",
+      "effective_until": null,
+      "supersedes": [
+        "rule-v1"
+      ],
+      "source_ref": {
+        "relative_path": "docs/decision.md",
+        "sha256": "2f29c1a72a6f4dcde642e6ba79ab94c520c508319b9a587343cd4dc6b8fa7aca",
+        "line_start": 3,
+        "line_end": 3
+      },
+      "confirmation_ref": "confirm-decision",
+      "constraints": [
+        {
+          "constraint_id": "endpoint-v2",
+          "subject": "endpoint",
+          "operator": "equals",
+          "value": "/api/v2/users",
+          "conditions": {}
+        }
+      ]
+    }
+  ],
+  "confirmations": [
+    {
+      "confirmation_id": "confirm-rule",
+      "kind": "rule_interpretation",
+      "source_ref": {
+        "relative_path": "AGENTS.md",
+        "sha256": "4d74b89868bdf1c1b0b00113707466e136868947b683eac7c675f3b73085d6c7",
+        "line_start": 3,
+        "line_end": 3
+      },
+      "approved_items": [
+        {
+          "item_id": "rule-v1",
+          "source_ref": {
+            "relative_path": "AGENTS.md",
+            "sha256": "4d74b89868bdf1c1b0b00113707466e136868947b683eac7c675f3b73085d6c7",
+            "line_start": 3,
+            "line_end": 3
+          }
+        }
+      ]
+    },
+    {
+      "confirmation_id": "confirm-decision",
+      "kind": "decision_approval",
+      "source_ref": {
+        "relative_path": "docs/decision.md",
+        "sha256": "2f29c1a72a6f4dcde642e6ba79ab94c520c508319b9a587343cd4dc6b8fa7aca",
+        "line_start": 3,
+        "line_end": 3
+      },
+      "approved_items": [
+        {
+          "item_id": "decision-v2",
+          "source_ref": {
+            "relative_path": "docs/decision.md",
+            "sha256": "2f29c1a72a6f4dcde642e6ba79ab94c520c508319b9a587343cd4dc6b8fa7aca",
+            "line_start": 3,
+            "line_end": 3
+          }
+        }
+      ],
+      "edit_approvals": [
+        {
+          "decision_id": "decision-v2",
+          "target_path": "AGENTS.md",
+          "operation": "replace_span",
+          "line_start": 3,
+          "line_end": 3,
+          "old_text_sha256": "d1cfa224813caef754a2374d00446d0cdbf3427bc0ed9576366d91d7e7fcc41b",
+          "replacement_sha256": "e2af4b3475e25f31f02887e904f2a1068330e0824e2aad1f247700426f8758e3",
+          "rule_ids": [
+            "rule-v1"
+          ]
+        }
+      ]
+    },
+    {
+      "confirmation_id": "confirm-check",
+      "kind": "check_configuration",
+      "source_ref": {
+        "relative_path": "docs/decision.md",
+        "sha256": "2f29c1a72a6f4dcde642e6ba79ab94c520c508319b9a587343cd4dc6b8fa7aca",
+        "line_start": 3,
+        "line_end": 3
+      },
+      "approved_items": [
+        {
+          "item_id": "check-endpoint",
+          "source_ref": {
+            "relative_path": "docs/decision.md",
+            "sha256": "2f29c1a72a6f4dcde642e6ba79ab94c520c508319b9a587343cd4dc6b8fa7aca",
+            "line_start": 3,
+            "line_end": 3
+          }
+        }
+      ]
+    }
+  ],
+  "behavior_checks": [
+    {
+      "check_id": "check-endpoint",
+      "subject": "endpoint",
+      "detector": "python_assignment_literal",
+      "scope": {
+        "include_prefixes": [
+          "clients"
+        ],
+        "exclude_prefixes": []
+      },
+      "parameters": {
+        "symbol": "ENDPOINT",
+        "decision_id": "decision-v2"
+      },
+      "confirmation_ref": "confirm-check"
+    }
+  ]
+}

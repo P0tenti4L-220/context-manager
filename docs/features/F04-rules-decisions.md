@@ -34,7 +34,7 @@ F04 不负责：
 
 - `src/context_manager/rules.py`：规则块解析、文本摘要、范围运算、候选构造。
 - `src/context_manager/decisions.py`：登记加载与校验、生效策略、替代关系、约束比较。
-- `tests/test_f04_rules_decisions.py`。
+- `tests/test_f04_decisions.py`。
 - `tests/fixtures/f04/`：合成项目和登记变体。
 
 公共入口如下。所有返回对象为冻结 dataclass 或等价只读结构，可稳定序列化为 JSON。
@@ -880,7 +880,7 @@ F04 按公共契约计算已登记 `edit_approvals` 的键并查找完全匹配�
 ## 本地测试
 
 ```sh
-.venv/bin/python -m pytest tests/test_f04_rules_decisions.py tests/test_f03_inspection.py tests/test_f02_evidence.py -q
+.venv/bin/python -m pytest tests/test_f04_decisions.py tests/test_f03_inspection.py tests/test_f02_evidence.py -q
 ```
 
 本地测试依赖 F02/F03 的真实实现。测试只通过 `capture_file` / `inspect_project` / `read_evidence` 取得证据和范围，不得直接读项目文件伪造 `EvidenceRef`，也不得复制预期报告替代判定。

@@ -453,7 +453,7 @@ F01 完整解析以上参数并构造 `AuditRequest`，使 F10 只替换管线�
 7. `--decisions`、`--case` 指定时必须存在且可读，否则 `input_not_found`。`--decisions` 的 JSON 语法与 `schema_version` 由 F01 检查，字段由 F04 检查；`--case` 的字段由 F05 检查。
 8. 全部通过后构造 `AuditRequest`，再进入管线。
 
-### 未就绪分支
+### F01 单独交付时的未就绪分支
 
 F01 阶段 `audit`、`diagnose` 在参数与请求校验通过后，向 stderr 输出：
 
@@ -565,7 +565,7 @@ markers = [
 | F01-02 | 版本错误、缺字段、错类型、未知枚举、未知字段 | 错误码与路径准确；`ContractError.exit_code == 2`；CLI 用坏 `--as-of` 或坏 `--decisions` 运行退出 2 |
 | F01-03 | 中文、空路径、无时区时间、倒置行号 | 中文 `claim`/路径通过；`""` 报 `empty_path`；无时区报 `invalid_format`；`line_end<line_start` 报 `invalid_value` |
 | F01-04 | `--help`、`--version`、无参数调用 | 前两者退出 0；帮助列出两个子命令，版本行含包版本与 `schema_version 1`；在临时 cwd 中不产生任何文件；无参数退出 2 |
-| F01-05 | 合法参数的 `audit`、`diagnose` | 退出 1；stderr 含 `not_implemented`；stdout 为空；`--out` 目录、`run_id` 目录均未创建 |
+| F01-05 | 合法参数的 `audit`、`diagnose` | F01 单独交付时检查 `not_implemented` 和零写入。接入 F10 后核对合法请求传给正式管线，以及 F10 对完整、部分和失败结果的退出码约定。 |
 | F01-06 | pytest 收集与标记 | `-m 'not local_model'` 不收集模型用例；默认收集时该用例 skip 原因含 `--local-model-config`；`request.config.getini("markers")` 含 `local_model`，`addopts` 含 `--strict-markers` |
 | F01-07 | 嵌套错误与多错误 | 路径为 `incidents[1].occurred_at`、`receipts[0].entries[2].source_ref.line_end`；一次返回多条且顺序稳定；超过 20 条时保留 20 条并追加 `too_many_errors` |
 | F01-08 | 输入含哨兵字符串 | 哨兵不出现在 `message`、stderr、stdout；错误只含路径、期望、实际类型 |

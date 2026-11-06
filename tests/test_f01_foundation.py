@@ -560,7 +560,7 @@ def test_f01_04_help_version_and_missing_command(tmp_path: Path) -> None:
 
 
 # F01-05
-def test_f01_05_not_implemented_without_side_effects(tmp_path: Path) -> None:
+def test_f01_05_integrated_pipeline_and_invalid_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     out = tmp_path / "out"
@@ -571,11 +571,12 @@ def test_f01_05_not_implemented_without_side_effects(tmp_path: Path) -> None:
         ["audit", "--repo", str(repo), "--project-id", "p", "--out", str(out)],
         tmp_path,
     )
-    assert audit.returncode == 1
-    assert audit.stdout == ""
-    assert "not_implemented" in audit.stderr
-    assert "audit pipeline is not available" in audit.stderr
-    assert not out.exists()
+    assert audit.returncode == 3
+    assert "status: partial" in audit.stdout
+    assert "not_implemented" not in audit.stderr
+    reports = list(out.glob("*/report.md"))
+    assert len(reports) == 1
+    before = {p: p.read_bytes() for p in out.rglob("*") if p.is_file()}
 
     diagnose = _run_cli(
         [
@@ -591,11 +592,10 @@ def test_f01_05_not_implemented_without_side_effects(tmp_path: Path) -> None:
         ],
         tmp_path,
     )
-    assert diagnose.returncode == 1
+    assert diagnose.returncode == 2
     assert diagnose.stdout == ""
-    assert "not_implemented" in diagnose.stderr
-    assert "diagnose pipeline is not available" in diagnose.stderr
-    assert not out.exists()
+    assert "not_synthetic" in diagnose.stderr
+    assert before == {p: p.read_bytes() for p in out.rglob("*") if p.is_file()}
 
 
 # F01-06

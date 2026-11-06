@@ -1,0 +1,30 @@
+{
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "valid-obligations",
+      "text": "# Project rules\n\n- New clients use `/api/v2/users`.\n- Preserve tests and the legacy compatibility exception.\n",
+      "expected": null
+    },
+    {
+      "name": "temporary-progress",
+      "text": "# Project rules\n\n- New clients use `/api/v2/users`.\n- Preserve tests and the legacy compatibility exception.\n\n## Temporary task notes\n\n- Migration ticket TASK-42 was closed yesterday. Today's next step is to send the review link.\n",
+      "expected": {"kind": "cleanup_candidate", "action": "relocate", "lines": [8]}
+    },
+    {
+      "name": "duplicate-duty",
+      "text": "# Release rules\n\n- Have a build team member review every release commit.\n- Every release commit requires a review from the build team.\n",
+      "expected": {"kind": "cleanup_candidate", "action": "ask_user", "lines": [3, 4]}
+    },
+    {
+      "name": "conflicting-duties",
+      "text": "# Release rules\n\n- Sign every release commit with GPG.\n- Leave every release commit unsigned.\n",
+      "expected": {"kind": "rule_conflict", "action": "ask_user", "lines": [3, 4]}
+    },
+    {
+      "name": "historical-example",
+      "text": "# Release rules\n\n- Sign every release commit with GPG.\n\n## Historical example\n\n> An old release workflow left commits unsigned.\n",
+      "expected": null
+    }
+  ]
+}

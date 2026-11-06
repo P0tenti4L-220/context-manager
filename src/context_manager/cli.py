@@ -1,9 +1,4 @@
-"""Command-line skeleton for context-manager (F01).
-
-The parameter surface is complete, but the audit and diagnose pipelines belong
-to F10.  Until they are connected, valid requests stop with ``not_implemented``
-and exit code 1 without creating any output directory.
-"""
+"""Command-line entry for the formal audit and diagnose pipelines."""
 
 from __future__ import annotations
 
@@ -109,6 +104,7 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="FILE",
         help="decision registry document",
     )
+    parser.add_argument("--harness-profile", default=None, metavar="FILE", help="versioned harness loading profile")
     parser.add_argument(
         "--semantic",
         choices=("off", "local"),
@@ -146,15 +142,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         return code
 
     try:
-        build_request(args, cwd=Path.cwd())
+        request = build_request(args, cwd=Path.cwd())
     except ContractError as error:
         print_contract_error(error)
         return error.exit_code
 
-    command = getattr(args, "command", None) or "audit"
-    print(f"{_PROG}: not_implemented", file=sys.stderr)
-    print(f"  {command} pipeline is not available in this build", file=sys.stderr)
-    return EXIT_FAILED
+    from .evidence import EvidenceError
+    from .pipeline import run_audit, run_diagnose
+    from .reporting import ArtifactCollisionError, ArtifactWriteError
+    try:
+        result = run_diagnose(request, args.case, model_config=args.model_config) if args.command == "diagnose" else run_audit(request, model_config=args.model_config)
+    except ContractError as error:
+        print_contract_error(error)
+        return error.exit_code
+    except (EvidenceError, ArtifactCollisionError, ArtifactWriteError) as error:
+        print(f"{_PROG}: {error.code}", file=sys.stderr)
+        return EXIT_FAILED
+    except (OSError, ValueError):
+        print(f"{_PROG}: runtime_failed", file=sys.stderr)
+        return EXIT_FAILED
+    warning_codes = sorted({error["code"] for error in result.artifacts.errors})
+    for code in warning_codes[:20]:
+        safe_code = code if isinstance(code, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,95}", code) else "run_warning"
+        print(f"{_PROG}: warning: {safe_code}", file=sys.stderr)
+    print(f"run_id: {result.run_id}")
+    print(f"status: {result.artifacts.effective_status}")
+    print(f"report: {result.artifacts.run_dir / 'report.md'}")
+    return result.artifacts.exit_code
 
 
 if __name__ == "__main__":  # pragma: no cover - module execution is covered by CLI tests

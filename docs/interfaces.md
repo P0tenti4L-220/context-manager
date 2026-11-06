@@ -13,10 +13,11 @@
 | F03 → F04/F05/F08 | `InspectionResult.rule_files[].scope` 投影为 F04 `RuleSource.source_scope`；`registered_instruction_files[] = {relative_path, evidence_id}`；profile 的 `harnesses[].context_channels` 可选 | 范围无法解析的规则仍报告，不能退回项目根进行确定性比较或编辑。白名单取成功捕获且明确可编辑的规则文件；任意导入文本不因被读取而可编辑。静态 profile 的渠道用于合成测试前须明确声明完整集合。 | F03-03/08/12/14、F08-06、F10-03 |
 | F04 → F05/F07/F08/F10 | `parse_registry(raw_bytes, *, project_id) -> RegistryInput`；`bind_registry(input, store) -> Registry`；`compare_constraints(...)`；`DecisionResolver.policy_at(as_of)`；`confirmation_approves(confirmation_id, approval_key, *, as_of)` | 预检拒绝坏结构；运行内绑定验证全文件摘要与行段，隔离失败条目并记录覆盖。F05 用事件时点的 PolicyState 查询规则和约束；F07 验证候选；F08 通过 F04 验证逐决策的改法批准。F04 保存 `candidate_id → edit_targets`。 | F04-01/05/09/10/11、F05-08、F08-01/03/11、F10-01/03 |
 | F05 → F06/F07/F09/F10 | `parse_incident_input(raw_bytes, *, project_id)`；`IncidentAnalysis.coverage_items: CoverageItem[]`；既有 `loads/behaviors/recurrence` 等视图 | 预检含包级结构和旧格式识别。捕获后用 `read_raw` 验证并解析同一份字节，按 F05 规格导入。F05 拥有覆盖和证据门槛，F10 不补算。事件范围优先于包声明、再回退 CLI，最终受 CLI 范围约束。 | F05-01～15、F10-02/03/07/13 |
-| F06 → F07/F09/F10 | `analyze_context(...)` 返回 `AnalystResult`；F10 适配 `RuleMaterial/IncidentMaterial`，将候选交 F07，并用关键字 `trace=` 交 F09 | 预算含提交动作。关闭语义时 F10 不构造传输、不运行 F06，写唯一的语义覆盖豁免。F06 发出 `run_start` 和终止事件；F09 白名单投影，协议错误等映射为 error，终止事件映射为 run_end。 | F06-01～13、本机语义案例、F09-02/08/09、F10-04/05/06 |
+| F06 → F07/F09/F10 | `analyze_context(...)` 返回 `AnalystResult`。F10 将候选和 `model_reads=analyst.reads` 交 F07，并用 `trace=` 交 F09 | 模型引用须由本次 F06 调用的实际返回行段覆盖。无决策体检的进度和规则比较共用预算，提交前的文档与区块编号转换为公共引用。F07 将迁移理由写入声明供报告和建议使用。trace 保留读取元数据、筛选与拒绝原因。 | F06-01～13、规则清理与本机语义案例、F09-02/08/09、F10-04/05/06 |
+| F03 → F07 | `evaluate_findings(..., inspection=inspection_result, model_reads=())` | dead_reference 回查真实 F03 观察与 F02 当前探测，不能只相信候选 facts；模型引用再次核对本轮 model_reads。Finding ID 使用逻辑路径/摘要/行段，避免运行 ID 改变同一结论身份。 | F07 证据门槛、F10 确定性 |
 | F07 → F08/F10 | `DiagnosisResult.validations[].{candidate_id,finding_ids}`；`findings: Finding[]` | 适配层只回连确定性 F04 `stale_rule` 的可编辑目标。空候选是完成的检查；越权、模型自述或加载推测不能变成证实事实。 | F07-01～18、F10-01/02/13 |
 | F08 → F09/F10 | `RepairPlan`；`apply_check = {exit_code, checked_at, applied_in_temp_copy, checked_files}` 可空 | `checked_files` 每项是 `{path, sha256}`，记录临时预检的基准文件摘要。失败仍记录实际退出码与原因；没启动 Git 时退出码为空。F09 原样写 Diff，修复检查留在提案产物。 | F08-01～12、F09-04/12 |
-| F09 → F10 | `build_artifacts(..., *, trace=(), incident_analysis=None, clock=None)`；`write_run_artifacts(..., *, trace=(), incident_analysis=None, clock=None) -> RunArtifacts` | F09 返回最终状态和退出码，保留报告降级原因。diagnose 有分析结果时写 `incidents.json`；audit 不写。F10 排他建立运行目录，F09 在目录内排他建立 `run.json`。 | F09-01～12、F10-08/11/12 |
+| F09 → F10 | `build_artifacts(..., *, trace=(), incident_analysis=None, inspection_result=None, clock=None)`；`write_run_artifacts(..., *, trace=(), incident_analysis=None, inspection_result=None, clock=None) -> RunArtifacts` | F09 返回最终状态和退出码，保留报告降级原因。diagnose 有分析结果时写 incidents.json；inspection_result 写 inspection.json 并展示静态清单。F10 排他建立运行目录，F09 在目录内排他建立 run.json。 | F09-01～12、F10-08/11/12 |
 
 ## 正常入口的关键顺序
 
@@ -36,5 +37,14 @@
 | D03 具体改法与提案完整性 | F04 授权、F07 关联、F08 摘要及预检、F09 产物 | F04/F07/F08/F09/F10 |
 | D04 运行覆盖与语义记录 | F05 覆盖和事件产物、F06 trace、F07 空候选、F09/F10 降级 | F05/F06/F07/F09/F10 |
 | D05 本机验收环境 | F01 虚拟环境与 pytest 标记；F06 本机配置；F10 安装后入口 | F01 基础门槛、F06 真实模型、F10 全流程与 wheel |
+
+## F03–F10 代码补强说明（2026-11-05）
+
+- 公开组件结果通过 `views.py` 深层封存，Mapping 和序列不共享可变容器。`dump_object` 返回独立 JSON 投影；内部更新用新视图替换，不解冻既有策略或缓存。新增组件视图是内部接口，对外 JSON 仍为 schema_version 1。
+- F01 的开放 payload 同步封存底层映射；选定文件预检不跟随末级链接、不阻塞 FIFO，并保留末级路径交 F02 再校验。F01 因这些行为及 CLI 变化需重新复核，旧 accepted 只代表历史快照。
+- profile 由 F03 的 `validate_profile` 统一校验，CLI 和组件调用使用同一门槛。任务排除条件不会写入规则固有作用范围。
+- F08 首行旧字节摘要包含原始 BOM；BOM 作为不变前缀保留，replacement_sha256 只覆盖实际批准的替换正文。具体换行与删除说明见 F08。F09 在写入前复核快照字节与提案；新产物排他落盘，失败留下 incomplete 清单。
+
+实际范围、运行结果和未完成验收见[详细执行方案](f03-f10-execution-plan.md)与[功能状态](feature-status.md)。
 
 [本地验收规范](acceptance.md)约定源码摘要和实际日志。实现顺序按[执行计划](../EXECUTION_PLAN.md)中的依赖门槛推进。F01 先建立 Python 3.11+ 工程、开发依赖和两个入口；F02 接入后，依赖齐备的模块可按表实施。本机模型服务的接口已经确定为无认证的本机回环 OpenAI 兼容聊天接口，运行器、模型权重与量化由本机实际环境确认。配置保存在 Git 忽略的 `local/model.toml`，按 F06 固定参数记录运行器、模型、版本、温度、超时和提示词摘要。环境未就绪时，真实语义用例和最终交付仍为 `not_run`。

@@ -1,0 +1,54 @@
+{
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "api-wording",
+      "files": {
+        "AGENTS.md": "# Client rules\n\n- New client integrations must send user requests to the version-one endpoint `/api/v1/users`.\n- The legacy/ compatibility clients continue using version one.\n- Preserve automated tests.\n",
+        "docs/decision.md": "# Approved migration\n\nFor new integrations in clients/, use the second-generation users route `/api/v2/users`. This accepted decision explicitly replaces the version-one requirement. legacy/ is excluded and tests remain mandatory.\n"
+      }
+    },
+    {
+      "name": "compound-rule",
+      "files": {
+        "AGENTS.md": "# Client rules\n\n- For clients/, use `/api/v1/users`; retain tests; legacy/ is a compatibility exception and keeps v1.\n",
+        "docs/decision.md": "# Approved migration\n\nFor clients/, replace only the route requirement with `/api/v2/users`. Preserve the test obligation and the legacy/ compatibility exception unchanged.\n"
+      }
+    },
+    {
+      "name": "doc-example",
+      "files": {
+        "AGENTS.md": "# Client rules\n\n- New clients use `/api/v2/users`.\n\n## Historical example\nThe following is a documentation example of an INCORRECT call, not an actual agent action:\n```python\nENDPOINT = '/api/v1/users'\n```\nNo edit event or task execution occurred in this example.\n"
+      }
+    },
+    {
+      "name": "draft-decision",
+      "files": {
+        "AGENTS.md": "# Client rules\n\n- New clients use `/api/v1/users`.\n- Preserve tests.\n",
+        "docs/decision.md": "# DRAFT migration proposal — NOT APPROVED\n\nProposed new clients route: `/api/v2/users`. This proposal has no approval and has not taken effect. Ask for the owner's decision before changing the current rule.\n"
+      }
+    },
+    {
+      "name": "log-wording",
+      "files": {
+        "AGENTS.md": "# Client rules\n\n- New clients use `/api/v2/users`; preserve tests.\n",
+        "events/first.json": "{\"event_id\":\"edit-one\",\"task_id\":\"task-alpha\",\"action\":\"edit\",\"target_path\":\"clients/a.py\",\"observed_assignment\":\"ENDPOINT = '/api/v1/users'\",\"note\":\"The new adapter was changed to the version-one users route.\"}\n",
+        "events/second.json": "{\"event_id\":\"edit-two\",\"task_id\":\"task-beta\",\"action\":\"edit\",\"target_path\":\"clients/b.py\",\"observed_assignment\":\"ENDPOINT = '/api/v1/users'\",\"note\":\"Implemented the next client using the obsolete first-generation user API.\"}\n"
+      }
+    },
+    {
+      "name": "retry-mention",
+      "files": {
+        "AGENTS.md": "# Client rules\n\n- New clients use `/api/v2/users`; preserve tests.\n",
+        "events/records.json": "{\"events\":[{\"event_id\":\"edit-one\",\"task_id\":\"task-alpha\",\"action\":\"edit\",\"note\":\"Introduced /api/v1/users\"},{\"event_id\":\"retry\",\"task_id\":\"task-alpha\",\"action\":\"retry\",\"note\":\"Same attempt and same edit copied again: /api/v1/users\"},{\"event_id\":\"mention\",\"task_id\":\"task-beta\",\"action\":\"mention\",\"note\":\"Documentation quotes /api/v1/users; no source edit happened\"}]}\n"
+      }
+    },
+    {
+      "name": "missing-receipt",
+      "files": {
+        "AGENTS.md": "# Client rules\n\n- New clients use `/api/v2/users`.\n",
+        "events/record.json": "{\"event_id\":\"edit-one\",\"task_id\":\"task-alpha\",\"action\":\"edit\",\"target_path\":\"clients/a.py\",\"receipt_id\":\"receipt-only-id\",\"rule_filename\":\"AGENTS.md\",\"receipt_contents\":null,\"note\":\"The receipt body, loaded text, epoch, channels and action-before ordering are unavailable. Loading is unknown.\"}\n"
+      }
+    }
+  ]
+}

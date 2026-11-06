@@ -384,7 +384,7 @@ git diff --check
    - 优先 `python -m build --no-isolation --wheel --outdir <tmp>`；
    - 不可用时 `python -m pip wheel --no-deps --no-build-isolation -w <tmp> .`；
    - 构建后端缺失或不支持离线构建时记 `not_run`，不得联网安装。
-3. 检查 wheel：包含 `context_manager/` 包、`prompts/analyst.md`、`METADATA` 与 `entry_points.txt`；不包含测试、示例、`local/`、缓存、`.venv`、模型配置或密钥。
+3. 检查 wheel 包含 `context_manager/`、四份分析提示词、`METADATA` 与 `entry_points.txt`。包内容限于运行所需源码、资源和元数据。
 4. 新建临时 venv，使用 `pip install --no-index --no-deps <wheel>` 安装；验证：
    - `context-manager --version` 等于包版本并带 `schema_version 1`；
    - `context-manager --help` 列出 audit、diagnose；

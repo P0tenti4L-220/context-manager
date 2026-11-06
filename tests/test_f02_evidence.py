@@ -885,7 +885,7 @@ def test_f02_11_duplicate_corruption_reopen_and_two_stores(tmp_path: Path) -> No
     multi_read = store_a.read_evidence(
         store_a.make_ref(store_a.get(ids[0]), 1, 1), caller="inspector"
     )
-    reopened_multi = EvidenceStore.open_existing(multi_out / "run-multi")
+    reopened_multi = EvidenceStore.open_existing(multi_out / "run-multi", project_root=multi_project)
     assert reopened_multi.covered_ranges(ids[0]) == [(1, 1)]
     assert len(reopened_multi.coverage_items()) == 4
     continued = reopened_multi.capture_file("docs/empty.md")

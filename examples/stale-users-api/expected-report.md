@@ -1,12 +1,61 @@
-# 示例报告：新客户端两次引入 v1 调用
+# 旧格式案例的实际运行结果
 
-此报告为手写的预期输出，不是 CLI 的运行结果。
+2026-11-06 通过正式 CLI 运行。两条事件只保留为线索，加载状态为未知，诊断退出 3。完整报告和快照位于本机验收目录。下方展示副本用文件名标明产物。
 
-| 判断 | 证据与限制 | 建议 |
-| --- | --- | --- |
-| `supported`：当前规则过时 | [AGENTS.md 第 3 行](project/AGENTS.md#L3) 要求 v1，[ADR-002](project/docs/adr/0002-users-api.md) 已明确要求新客户端用 v2；当前客户端实现也使用 v2。`legacy/` 仍允许使用 v1。 | 审阅 [单行补丁](proposal.diff)，保留兼容与测试规则。 |
-| `supported`：同一类错误在两个任务中复发 | [合成事件](case.json) `edit-001` 和 `edit-002` 属于两个独立任务，均在 `clients/` 引入 v1 调用。两次都晚于 ADR 生效日。 | 将后续回归检查限定在新客户端，避免误伤兼容目录。 |
-| `hypothesis`：旧规则可能影响第一次行为 | 合成回执 `synthetic-context-before-edit-001` 记录该版本的旧规则在第一次行为前已加载。行为与规则相符，仍无法仅凭回执证明因果。 | 预览规则修订；将「修订后是否更少犯错」留给后续隔离重放。 |
-| `unknown`：第二次行为的根因 | `edit-002` 缺少动作前的上下文回执。不能判断旧规则是否加载，也不能判为未加载或已加载却违背。 | 补充该次会话的规则版本与加载证据。 |
+# Context Manager report
 
-验证计划：检查补丁只修改目标规则；确认 `legacy/` 例外和测试要求仍在；后续以相同任务对照修订前后的行为。真实模型重放：`not_run`。
+Project: stale-users-api
+Status: **partial** · exit code 3
+Synthetic basis: synthetic
+As of: 2026-11-05T00:00:00Z
+
+## Scope and coverage
+
+{&quot;include\_prefixes&quot;: \[&quot;clients&quot;\], &quot;exclude\_prefixes&quot;: \[\], &quot;harnesses&quot;: \[\]}
+
+Checks: 13 passed, 0 failed, 10 not run.
+
+## Instruction inventory
+
+Only task ancestors, rule directories and explicit imports were inspected.
+
+- AGENTS.md: definite; expected loading: unknown; actual loading is not established by discovery.
+- CLAUDE.md: definite; expected loading: unknown; actual loading is not established by discovery.
+
+References missing: 0; commands missing: 0.
+
+Inventory, imports, scope and command details (`inspection.json`)
+
+## Findings
+
+No grounded findings were produced. See check coverage for unperformed or incomplete checks.
+## Repair proposals
+
+
+No preview diff: no_editable_findings.
+
+## Incomplete checks and gaps
+
+- f04.behavior_checks: not_run · registry\_not\_provided
+- f04.constraint_comparison: not_run · registry\_not\_provided
+- f04.registry: not_run · registry\_not\_provided
+- f04.supersession: not_run · registry\_not\_provided
+- f05.behaviors: not_run · legacy\_material\_gap
+- f05.bundle: not_run · legacy\_material\_gap
+- f05.loads: not_run · legacy\_material\_gap
+- f05.receipts: not_run · legacy\_material\_gap
+- f05.recurrence: not_run · legacy\_material\_gap
+- f06.semantic: not_run · disabled\_by\_user
+- coverage\_incomplete: coverage\_incomplete
+
+Semantic analysis: not requested (未请求).
+
+Incident counts: {&quot;canonical\_event\_count&quot;: 2, &quot;confirmed\_independent\_tasks&quot;: 0, &quot;confirmed\_violation\_actions&quot;: 0, &quot;conflicted\_event\_count&quot;: 0, &quot;duplicate\_event\_count&quot;: 0, &quot;excluded\_event\_count&quot;: 2, &quot;invalid\_event\_count&quot;: 0, &quot;raw\_event\_count&quot;: 2}
+
+Incident observations, receipts and gaps (`incidents.json`)
+
+Legacy example: claims are unverified; full snapshots and receipts are required.
+
+## Artifacts
+
+Findings (`findings.json`) · Checks (`checks.json`) · Proposals (`proposals.json`) · Evidence index (`evidence/index.json`)

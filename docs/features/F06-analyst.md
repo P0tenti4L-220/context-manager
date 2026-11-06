@@ -24,7 +24,7 @@ F06 只负责有界、只读的语义候选生成，不承担最终判断：
 | --- | --- |
 | `src/context_manager/analyst.py` | 运行循环、动作解析、候选校验、读取覆盖、预算和结果汇总 |
 | `src/context_manager/model_transport.py` | 本机兼容聊天接口、配置校验、响应限制和错误归一化 |
-| `src/context_manager/prompts/analyst.md` | 固定的系统提示词与工具协议说明 |
+| `src/context_manager/prompts/` | `instruction_review.md` 检查任务进度，`instruction_pairs.md` 比较现行规则，两者用于无决策体检。`analyst.md` 检查规则与决策，`incident.md` 关联事件。各提示词共用同一个 Analyst 和只读工具协议 |
 | `tests/test_f06_analyst.py` | 固定响应驱动的机械测试，包含本地 HTTP 传输测试 |
 | `tests/test_f06_local_model.py` | 真实本地模型语义案例，标记 `local_model` |
 | `tests/fixtures/f06/` | 只读工具循环与七个语义案例的合成材料 |
@@ -111,9 +111,10 @@ F06 需要 F05 `IncidentAnalysis` 的以下只读视图：
 | `max_response_bytes` | 65536 | 单次 HTTP 响应体上限，不是模型调用次数。 |
 | `max_content_bytes` | 16384 | 单次响应中 `choices[0].message.content` 的 UTF-8 字节上限。 |
 | `max_protocol_errors` | 连续 2，总计 3 | 连续两次或累计三次协议错误后终止。第一次错误允许一次纠正重试。 |
-| `max_candidates` | 20 | 一次提交的候选上限；超过时按协议错误处理，不进入逐项校验。 |
+| `max_candidates` | 20 | 本次运行中各阶段的候选总数上限。提交超过剩余额度时按协议错误处理。 |
 | `max_catalog_items` | 200 | 送入提示词和 `list_evidence` 返回的证据目录上限；超出时标记截断。 |
 | `max_catalog_bytes` | 32768 | 证据目录元数据的 JSON 字节上限；超出时截断并标记。 |
+| `max_brief_bytes` | 131072 | 初始 brief 的 JSON 字节上限。先裁剪材料列表并记录 material_truncated；仍超限时 brief_budget_exhausted，零模型调用。 |
 | 单次读取 | 80 行、8 KiB | 由 F02 执行；超出时返回实际展示范围与 `truncated`。 |
 
 预算耗尽即停止：不再发起新的模型调用。已提交且通过校验的候选保留；没有提交时结果为空并标为 `partial`。证据正文达到上限时，新片段不返回给模型，也不计入读取覆盖；运行以 `evidence_budget_exhausted` 结束。
@@ -133,9 +134,10 @@ F06 需要 F05 `IncidentAnalysis` 的以下只读视图：
   "stop_reason": "submitted" | "protocol_failure" | "transport_failure"
                  | "timeout" | "model_budget_exhausted"
                  | "tool_budget_exhausted" | "evidence_budget_exhausted"
-                 | "not_run" | "internal_error",
+                 | "brief_budget_exhausted" | "not_run" | "internal_error",
   "candidates": Candidate[],
   "rejected_candidates": RejectedCandidate[],
+  "filtered_candidates": [{candidate_id, reason, candidate}],
   "reads": ReadRecord[],
   "trace": TraceEvent[],
   "usage": {...},
@@ -149,11 +151,13 @@ F06 需要 F05 `IncidentAnalysis` 的以下只读视图：
 
 `status` 的判定：
 
-- `complete`：收到结构有效的终止提交，没有候选被拒绝，目录未截断，没有预算、协议或传输失败。提交零个候选也可以是 `complete`。
+- `complete` 需要收到结构有效的终止提交，计划中的比较阶段已结束，候选均通过结构与引用检查，目录和材料未截断。目录有可读正文时，空提交前也须至少实际读取一次，否则进入有界协议纠正。目录为空时允许直接空提交。
 - `partial`：至少一个候选被拒绝；目录被截断；或运行因预算、超时、协议失败、传输失败、内部错误结束。合法的候选仍然保留。
 - `not_run`：防御性分支，仅当调用方以 `semantic_mode=off` 调用时返回；不创建网络连接，不读取证据。
 
 `stop_reason` 与 `status` 独立：正常提交因个别候选无效时仍为 `stop_reason=submitted`、`status=partial`。`errors` 记录不可恢复或需要上层展示的错误；每项为 `ErrorRecord`，包含 `code`、`message`、`recoverable` 和可选 `field`。代码使用稳定枚举，消息不超过 500 个字符，不包含证据正文和模型完整原文。
+
+`filtered_candidates` 保留机械可识别的非问题笔记：cleanup_candidate/keep 为 no_action_recommended；无 rationale 的原文逐行复述为 verbatim_restatement_without_rationale。它们不进入最终问题集合，也不计作无效候选；带具体问题理由的清理建议仍进入 F07，等级不高于 hypothesis。筛选不是语义真伪判断。
 
 `coverage` 记录语义覆盖：
 
@@ -187,10 +191,12 @@ F06 需要 F05 `IncidentAnalysis` 的以下只读视图：
 | `counter_refs` | 0 至 20 个规范化 `EvidenceRef`；可以指出反证或未覆盖的冲突材料。 |
 | `missing_evidence` | 0 至 20 条字符串，每条不超过 500 个字符；`insufficient_evidence` 至少有一条。 |
 | `suggested_action` | 公共契约 `suggested_action` 枚举。 |
+| `rationale` | 1 至 2000 字符，解释具体观察到的问题。`cleanup_candidate/relocate` 必须提供非空理由。理由用于报告，事实等级仍由 F07 判定。 |
 | `edit_intent` | 可选；运行器补齐基准字段并标 `origin=model` 后交给 F07/F08。只作为修改草图，F08 必须重新校验，不能据此生成可应用 Diff。 |
 | `model_confidence` | 可选，0.0 至 1.0；F07 只归档，不参与 F06 校验、排序或结论等级。 |
+| `claim_type` | 可选，取 `fact`、`causal_explanation` 或 `gap`。因果解释由 F07 保持为独立假设。 |
 
-模型给出的引用可以省略 `sha256`，运行器通过 F02 的 `get(evidence_id)` 与 `make_ref` 补齐；模型给出摘要时必须与证据摘要一致。引用输入允许的字段为 `evidence_id`、`line_start`、`line_end` 和可选 `sha256`，行号两端包含，从 1 开始。最终候选中的每个引用都带实际摘要，并交给 `validate_ref(require_covered=True)` 复核。
+模型给出的引用可以省略 `sha256`，运行器通过 F02 补齐；给出摘要时必须一致。引用输入允许 evidence_id、line_start、line_end 和可选 sha256。最终引用同时通过 F02 校验和本次 AnalystResult.reads 范围校验，不能使用 Inspector 或前一次调用的覆盖。reads 保留 F02 的 read_id、摘要、实际行段和字节数；trace 输出对应元数据，不含正文。
 
 `edit_intent` 分两步。模型只提供草图：
 
@@ -285,18 +291,28 @@ F09 按白名单投影，保留可复核的动作、错误码和停止原因。t
 ## 运行循环
 
 1. 校验 `request`、预算和 `goal`。`semantic_mode=off` 返回 `not_run`；`diagnose` 缺少事件材料、`synthetic` 为 false、材料结构无效时抛出契约错误，不发起模型调用。
-2. 读取 `src/context_manager/prompts/analyst.md`，计算 SHA-256；构建初始消息：系统提示词、分析 brief、证据目录元数据、规则与决策元数据、事件与回执摘要、预算说明。记录开始时间和初始 trace。
+2. 按目标与决策材料选择提示词并计算 SHA-256。无决策的体检关注实际规则冲突、重复条款和临时进度。有决策的体检对齐规则与决策。诊断关联历史事件。构建分析 brief、证据目录、规则决策与事件回执元数据和预算说明，记录开始时间和初始 trace。
 3. 每轮先检查墙钟、模型调用和工具调用预算；达到上限按对应 `stop_reason` 结束，不再发起调用。
 4. 调用 transport。发出请求前增加 `model_calls`；传输层按剩余时长设置单次超时，并限制响应体与内容大小。
-5. 解析一个动作。格式、动作名或响应结构不合法时为协议错误：记录错误，追加带标记的纠正消息，允许一次重试；连续两次或累计三次后终止。连接失败、HTTP 错误、重定向和响应体超限不重试，直接以传输失败结束。
+5. 解析一个动作。格式、动作名或响应结构不合法时记协议错误，并用可用读取动作的完整 JSON 形状纠正一次。连续两次或累计三次协议错误后终止。连接失败、HTTP 错误、重定向和响应体超限直接以传输失败结束。
 6. 合法动作分派：
    - `list_evidence`：返回范围内证据元数据；不产生读取覆盖。
    - `read_evidence`：通过 F02 读取；成功片段加入读取覆盖，并追加带标记的工具结果。未知 ID、越界、摘要不符返回结构化工具错误，不终止循环。
-   - `submit_candidates`：校验提交结构。结构不是对象、候选不是列表或超过 20 个时按协议错误处理；否则逐项校验候选并终止循环。
+   - `submit_candidates` 校验提交结构。结构错误或候选数超过剩余额度时按协议错误处理。有效提交逐项校验，结束当前阶段。
 7. 每次工具结果都附加当前用量（模型调用、工具调用、证据字节、剩余时间），并标记证据正文为不可信数据。模型下一轮只能继续返回一个 JSON 动作。
 8. 生成 `AnalystResult`。提交后的候选级拒绝不影响合法候选；结果标为 `partial`，并把拒绝原因交给 F07/F09 作为覆盖缺口。
 
 运行器不根据模型文字改变动作。模型说“已经读取”不算读取，只有 `read_evidence` 的成功返回进入覆盖；模型说“已加载”不产生 `LoadReceipt`；模型说“发生两次”不产生计数。
+
+### 无决策体检的分阶段审阅
+
+1. 目录只列规则文件和文档快照。先用 `read_evidence` 取得正文，按实际行号展示。进度审阅用本轮文档编号和行段指向具体任务的状态记录，模型说明归入任务日志的理由。运行器用该行段的快照原文形成候选声明，保留任务标识和进展，合并换行及多余空白。引用落入 F04 已标记的历史或引用区块时保留筛除记录。
+2. 完成目录的计划读取后，若至少有两个已展示的现行规则区块，同一个 Analyst 再比较这些区块。输入只包含这些已读区块、编号与范围信息。模型以两个不同的区块编号引用重复或冲突的义务。运行器只接受实际展示的编号，并转换成这两个区块的快照引用。历史区块和引用区块不参与比较。
+3. 内部类别 `progress`、`duplicate`、`conflict` 分别映射为 `cleanup_candidate/relocate`、`cleanup_candidate/ask_user`、`rule_conflict/ask_user`。转换后的候选仍按公共 JSON v1 校验引用和范围。两个阶段共用一次运行的模型、工具、时间和候选上限。比较阶段失败时保留进度阶段的合法候选，覆盖为 `partial`。
+
+### 有决策的体检
+
+审阅目录包含规则和文档，以及规则、决策、确认明确绑定的证据来源。登记状态和适用条件由 F04 的结构化材料提供，实际文本通过只读工具展示。存在已接受的决策时，最后一轮提示要求在声明中写明被替换的具体子条款、批准的新要求和保留的其他义务。决策是否实际生效仍由 F04/F07 校验。
 
 ## 动作协议
 
@@ -357,7 +373,7 @@ F09 按白名单投影，保留可复核的动作、错误码和停止原因。t
 {"action": "submit_candidates", "args": {"candidates": []}}
 ```
 
-提交是终止动作。一次运行只接受一个结构有效的提交，之后不再调用模型。候选逐个校验：合法项进入 `candidates`，非法项进入 `rejected_candidates`；没有“部分修正后重新提交”的通道。若提交结构本身不合法（不是对象、候选不是列表、超过 20 个），按协议错误处理并允许纠正重试；纠正后仍不合法则终止且不保留候选。
+每个阶段接受一次结构有效的提交，最后一次提交终止运行。合法项进入 `candidates`，非法项进入 `rejected_candidates`。提交结构无效时按协议错误处理并允许有界纠正。终止时保留此前阶段已接收的合法候选。
 
 已知工具的参数错误返回工具错误并继续循环；未知工具名、`args` 不是对象、缺少 `action` 等按协议错误处理。任何情况下都不会执行文件写入、Shell、网络访问或项目代码。
 
@@ -382,13 +398,15 @@ F02 是读取覆盖的权威来源：`read_evidence(..., caller="analyst")` 成�
 6. 校验 `edit_intent`：目标覆盖、F02 `span_sha256`、替换长度、规则 ID 类型、依据引用；补齐 `target_path`、`base_evidence_id`、`base_sha256`、`operation`、`confirmation_id=null` 和 `origin=model`。
 7. 任一要求不满足则拒绝该候选，其他候选不受影响。
 
+当模型把历史示例或引用作为冲突的唯一另一侧时，F06 按 F04 的区块类型将其列入 `filtered_candidates`。原候选和筛除原因保留供复核。
+
 候选引用必须指向具体行段，不能只写文件名。候选 `claim` 可以保留不确定性、提出待确认问题和列出反证；F06 不把 `claim` 与引用做语义蕴含判断，也不因引用有效就提升结论等级。F07 重新核验引用、范围和证据门槛。
 
 候选范围可以小于请求范围，以表达条款自身的作用域；引用可以指向候选范围外的决策或历史材料，用于说明替代关系或例外来源。候选不得借助范围字段扩大审计范围。
 
 ## 提示词与注入边界
 
-`prompts/analyst.md` 至少固定以下内容：
+各阶段提示词共享以下运行边界。
 
 - 角色是只读 Context Analyst，只输出一个 JSON 动作，不输出自由文本结论。
 - 三个动作的完整参数、返回格式和预算；说明提交后结束。
@@ -398,23 +416,20 @@ F02 是读取覆盖的权威来源：`read_evidence(..., caller="analyst")` 成�
 - 保留反证、例外、测试义务和未知项；材料不足时提交 `insufficient_evidence` 或待确认候选，不补造事实。
 - 预算与结束条件；不要重复读取相同片段。
 
-初始 brief 使用 JSON 传递结构化元数据，不把证据正文直接拼进提示词。证据正文只在工具结果中出现。工具结果消息格式为：
+初始 brief 使用 JSON 传递结构化元数据，证据正文只在工具结果中出现。工具结果消息的结构如下。
 
 ```text
-[TOOL_RESULT]
-{"tool":"read_evidence","ok":true,"trust":"untrusted_data","data":{...}}
+UNTRUSTED TOOL RESULT
+{"result":{...},"usage":{...}}
+END UNTRUSTED DATA
+TOOL LOOP CONTROL: ...
 ```
 
-纠正消息格式为：
+纠正消息以 `PROTOCOL CORRECTION` 开头。可用时附上一个完整的合法读取动作。协议错误代码单独进入 trace，达到终止上限时也进入覆盖与错误记录。
 
-```text
-[PROTOCOL_ERROR]
-{"code":"BAD_JSON","message":"...","allowed_actions":["list_evidence","read_evidence","submit_candidates"]}
-```
+不可信数据标记配合代码层动作与引用校验。只有合法动作会被调度，合法引用仍须通过覆盖校验。模型不能改写提示词、系统消息、预算或工具结果。
 
-`trust` 和 `[TOOL_RESULT]` 只是运行器标记，不能替代代码层校验。即使模型执行了证据中的指令，也只有合法动作会被调度，合法引用仍须通过覆盖校验。模型不能改写提示词、系统消息、预算或工具结果。
-
-提示词版本固定为 `f06.v1`，文件内容变化必须更新版本并重新运行本地模型案例。提示词 SHA-256 写入 `AnalystResult.model` 和运行清单。
+提示词变更后更新运行器记录的版本，并重新运行受影响的本地模型案例。选用的分析提示词 SHA-256 写入 `AnalystResult.model` 和运行清单。无决策体检按进度、规则比较的顺序将两份提示词以两个换行连接后计算摘要。
 
 ## 本地模型传输
 
@@ -568,7 +583,7 @@ F09 使用 `trace`、`usage`、`model` 和 `coverage` 写入 `trace.jsonl`、`ru
 | 案例 | 语义目标 | 自动断言 | 人工复核 |
 | --- | --- | --- | --- |
 | `api-wording` 不同措辞描述新旧 API | 找到同范围冲突，引用旧规则和新决策 | 至少 2/3 次出现 `stale_rule` 或 `rule_conflict` 候选，引用同时覆盖旧规则与新决策；所有引用有效。 | 范围判断正确，兼容目录例外保留，未把新决策替换关系说反。 |
-| `compound-rule` 一条规则含路由、测试和兼容例外 | 改写候选保留测试与例外 | 至少 2/3 次出现修改类候选，引用覆盖路由、测试和例外三处；所有引用有效。 | 删除/改写只针对冲突子条款，测试义务和 `legacy/` 例外未被丢弃。 |
+| `compound-rule` 一条规则含路由、测试和兼容例外 | 改写候选保留测试与例外 | 至少 2/3 次出现修改类候选，引用覆盖复合规则和决策，声明写明新旧路由、测试与 `legacy/` 例外。所有引用有效。 | 声明明确只替换路由子条款。核对测试义务和兼容例外。 |
 | `doc-example` 文档引用错误示例 | 识别为说明，避免当成实际执行 | 3/3 次不出现基于该示例的 `loaded_violation` 或复发结论；若提出候选，引用有效且说明其为文档材料。 | 解释为示例/历史引用，不生成违规修复。 |
 | `draft-decision` 决策草稿与现有规则不一致 | 提出确认问题，保留未决状态 | 3/3 次不出现确定的 `stale_rule` 结论；出现 `insufficient_evidence` 或 `rule_conflict` 且建议 `ask_user`；引用有效。 | 不替用户在草稿与现行规则之间选边，列出缺失确认。 |
 | `log-wording` 两段日志表述不同但同类违规 | 正确关联行为，计数交给程序 | 至少 2/3 次出现关联两个事件来源的复发候选；引用有效；候选不写确定的独立任务计数。 | 关联依据是动作和任务，不是文字相似；未把提及当执行。 |

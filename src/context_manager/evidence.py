@@ -1195,7 +1195,8 @@ class EvidenceStore:
         return {
             "schema_version": STORE_VERSION,
             "run_id": self.run_id,
-            "project_root": str(self.project_root),
+            "project_root": None,
+            "project_root_sha256": hashlib.sha256(os.fsencode(self.project_root)).hexdigest(),
             "created_at": self.created_at,
             "limits": asdict(self.limits),
             "tool_version": TOOL_VERSION,
@@ -1205,9 +1206,10 @@ class EvidenceStore:
         store_path = self.run_dir / "_store.json"
         if store_path.exists():
             stored = self._read_store_document(store_path)
-            if stored["run_id"] != self.run_id or stored["project_root"] != str(
-                self.project_root
-            ):
+            stored_root_digest = stored.get("project_root_sha256")
+            if stored_root_digest is None and isinstance(stored.get("project_root"), str):
+                stored_root_digest = hashlib.sha256(os.fsencode(stored["project_root"])).hexdigest()
+            if stored["run_id"] != self.run_id or stored_root_digest != hashlib.sha256(os.fsencode(self.project_root)).hexdigest():
                 raise _error(
                     "evidence_run_conflict",
                     "run directory already belongs to another run",
@@ -1242,6 +1244,8 @@ class EvidenceStore:
             raise _error("evidence_index_corrupt", "_store.json is incomplete")
         if not isinstance(raw["limits"], dict):
             raise _error("evidence_index_corrupt", "_store.json limits are invalid")
+        if raw.get("project_root") is None and (not isinstance(raw.get("project_root_sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", raw["project_root_sha256"])):
+            raise _error("evidence_index_corrupt", "_store.json root binding is invalid")
         return raw
 
     @classmethod
@@ -1251,6 +1255,7 @@ class EvidenceStore:
         *,
         limits: EvidenceLimits | None = None,
         clock: Callable[[], datetime] | None = None,
+        project_root: str | os.PathLike[str] | None = None,
     ) -> "EvidenceStore":
         path = Path(run_dir).expanduser().resolve()
         store_path = path / "_store.json"
@@ -1283,7 +1288,19 @@ class EvidenceStore:
         obj.evidence_dir = evidence_dir
         obj.run_id = stored["run_id"]
         obj.output_root = path.parent
-        obj.project_root = Path(stored["project_root"])
+        # Snapshot reopening needs no original project and must not disclose
+        # its absolute path. Project-backed writes require the normal constructor.
+        if project_root is not None:
+            try:
+                bound_root = Path(project_root).expanduser().resolve(strict=True)
+            except OSError:
+                raise _error("evidence_not_found", "project root is unavailable") from None
+            expected = stored.get("project_root_sha256") or hashlib.sha256(os.fsencode(stored["project_root"])).hexdigest()
+            if not bound_root.is_dir() or hashlib.sha256(os.fsencode(bound_root)).hexdigest() != expected:
+                raise _error("evidence_run_conflict", "project root does not match the existing run")
+            obj.project_root = bound_root
+        else:
+            obj.project_root = Path(stored["project_root"]) if stored.get("project_root") else path / ".unbound-project"
         obj.created_at = stored["created_at"]
         obj.limits = limits if limits is not None else stored_limits
         _validate_limits(obj.limits)

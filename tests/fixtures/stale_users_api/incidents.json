@@ -1,0 +1,165 @@
+{
+  "format": "context-manager-incidents",
+  "schema_version": 1,
+  "synthetic": true,
+  "project_id": "synthetic",
+  "task_scope": [
+    "clients"
+  ],
+  "channel_profile": {
+    "profile_id": "synthetic",
+    "profile_version": "1",
+    "source": "synthetic",
+    "channels": {
+      "codex": [
+        "project_instructions",
+        "imported_instructions",
+        "rule_directories",
+        "session_injection"
+      ]
+    }
+  },
+  "files": [
+    {
+      "file_ref": "rules",
+      "path": "AGENTS.md",
+      "revision": "before",
+      "kind": "rule",
+      "content": "# Rules\n\n- New clients must use `/api/v1/users`; keep tests.\n- Legacy compatibility clients keep `/api/v1/users`.\n"
+    },
+    {
+      "file_ref": "event-1",
+      "path": "clients/client1.py",
+      "revision": "event-1",
+      "kind": "code",
+      "content": "ENDPOINT = \"/api/v1/users\"\n"
+    },
+    {
+      "file_ref": "event-2",
+      "path": "clients/client2.py",
+      "revision": "event-2",
+      "kind": "code",
+      "content": "ENDPOINT = \"/api/v1/users\"\n"
+    }
+  ],
+  "incidents": [
+    {
+      "event_id": "event-1",
+      "session_id": "session-1",
+      "task_id": "task-1",
+      "attempt_id": "attempt-1",
+      "occurred_at": "2026-10-02T00:00:00Z",
+      "context_epoch": "epoch-1",
+      "action": {
+        "kind": "edit",
+        "target_path": "clients/client1.py",
+        "after_ref": {
+          "file_ref": "event-1",
+          "line_start": 1,
+          "line_end": 1
+        }
+      },
+      "harness": "codex"
+    },
+    {
+      "event_id": "event-2",
+      "session_id": "session-2",
+      "task_id": "task-2",
+      "attempt_id": "attempt-1",
+      "occurred_at": "2026-10-03T00:00:00Z",
+      "context_epoch": "epoch-1",
+      "action": {
+        "kind": "edit",
+        "target_path": "clients/client2.py",
+        "after_ref": {
+          "file_ref": "event-2",
+          "line_start": 1,
+          "line_end": 1
+        }
+      },
+      "harness": "codex"
+    },
+    {
+      "event_id": "event-1-retry",
+      "session_id": "session-1",
+      "task_id": "task-1",
+      "attempt_id": "attempt-2",
+      "occurred_at": "2026-10-02T00:00:00Z",
+      "context_epoch": "epoch-1",
+      "action": {
+        "kind": "edit",
+        "target_path": "clients/client1.py",
+        "after_ref": {
+          "file_ref": "event-1",
+          "line_start": 1,
+          "line_end": 1
+        }
+      },
+      "harness": "codex"
+    }
+  ],
+  "receipts": [
+    {
+      "receipt_id": "receipt-1",
+      "session_id": "session-1",
+      "harness": "codex",
+      "context_epoch": "epoch-1",
+      "before_event_id": "event-1",
+      "coverage": "complete",
+      "channels_covered": [
+        "project_instructions",
+        "imported_instructions",
+        "rule_directories",
+        "session_injection"
+      ],
+      "entries": [
+        {
+          "rule_id": "rule-v1",
+          "source_ref": {
+            "file_ref": "rules",
+            "line_start": 3,
+            "line_end": 3
+          },
+          "text_sha256": "d1cfa224813caef754a2374d00446d0cdbf3427bc0ed9576366d91d7e7fcc41b",
+          "channel": "project_instructions"
+        }
+      ],
+      "provenance": {
+        "synthetic": true,
+        "adapter": "fixture",
+        "protocol_version": "1"
+      }
+    },
+    {
+      "receipt_id": "receipt-2",
+      "session_id": "session-2",
+      "harness": "codex",
+      "context_epoch": "epoch-1",
+      "before_event_id": "event-2",
+      "coverage": "complete",
+      "channels_covered": [
+        "project_instructions",
+        "imported_instructions",
+        "rule_directories",
+        "session_injection"
+      ],
+      "entries": [
+        {
+          "rule_id": "rule-v1",
+          "source_ref": {
+            "file_ref": "rules",
+            "line_start": 3,
+            "line_end": 3
+          },
+          "text_sha256": "d1cfa224813caef754a2374d00446d0cdbf3427bc0ed9576366d91d7e7fcc41b",
+          "channel": "project_instructions"
+        }
+      ],
+      "provenance": {
+        "synthetic": true,
+        "adapter": "fixture",
+        "protocol_version": "1"
+      }
+    }
+  ]
+}

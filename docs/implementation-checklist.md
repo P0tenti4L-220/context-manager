@@ -4,21 +4,11 @@
 
 ## 当前基线与交付范围
 
-| 项目 | 当前结果 |
-| --- | --- |
-| F01 工程入口与公共契约 | accepted，对应 F01-H02 |
-| F02 证据存储与受限读取 | accepted，对应 F02-H02 |
-| F03 | ready，可领取 |
-| F04–F10 | planned，功能测试 not_run |
-| 基础测试 | 30 passed、1 个 local_model 门控 skipped；排除模型标记为 30 passed、1 deselected |
-| 独立探针 | F01 的 7 项和 F02 的 5 项均通过 |
-| 本机模型环境 | 已准备并完成独立分类冒烟；F06 真实语义案例 not_run |
-
-本轮按用户要求先发布已验收的 F01/F02、合成测试、设计和本计划，仓库首页标记开发进度。首版完整工作流的发布条件保留在下文。每个验收编号表示一组场景，pytest 函数数目与编号数可以不同。
+F01–F10 已接入正式工作流。这里保留专项复跑命令和发布门槛。当前测试和待办以 [功能状态](feature-status.md) 与 [执行记录](../EXECUTION_PLAN.md) 为准。
 
 ## 实现顺序与检查门槛
 
-后续共有 108 个规格验收编号。F10-06 需要真实本机模型，F06 另有 7 个语义案例、每例 3 次。测试状态以实际命令和输出更新。
+F03–F10 的规格列出 108 个编号。其中 F10-06 使用真实模型，F06 另有七组案例，每组执行三次。历史实施过程记录于 [详细执行方案](f03-f10-execution-plan.md)。
 
 | 功能与直接依赖 | 实现交付 | 必须验证的行为 | 验收编号与规格 |
 | --- | --- | --- | --- |
@@ -35,16 +25,16 @@
 
 ## 命令清单
 
-下面的命令在对应测试文件已实现后运行。当前 F03–F10 尚未实现的命令记录为 not_run。示例沿用本机的 RTK 包装，实际日志保留完整命令、开始时间、耗时和退出码。
+以下命令用于复跑专项测试。实际执行、退出码、日志和源码清单由执行记录关联。
 
 | 领取功能 | 专项与依赖回归命令 |
 | --- | --- |
 | F03 | `rtk proxy .venv/bin/python -m pytest tests/test_f03_inspection.py tests/test_f02_evidence.py tests/test_f01_foundation.py -q` |
-| F04 | `rtk proxy .venv/bin/python -m pytest tests/test_f04_rules_decisions.py tests/test_f03_inspection.py tests/test_f02_evidence.py tests/test_f01_foundation.py -q` |
-| F05 | `rtk proxy .venv/bin/python -m pytest tests/test_f05_incidents.py tests/test_f04_rules_decisions.py tests/test_f02_evidence.py tests/test_f01_foundation.py -q` |
+| F04 | `rtk proxy .venv/bin/python -m pytest tests/test_f04_decisions.py tests/test_f03_inspection.py tests/test_f02_evidence.py tests/test_f01_foundation.py -q` |
+| F05 | `rtk proxy .venv/bin/python -m pytest tests/test_f05_incidents.py tests/test_f04_decisions.py tests/test_f02_evidence.py tests/test_f01_foundation.py -q` |
 | F06 运行器 | `rtk proxy .venv/bin/python -m pytest tests/test_f06_analyst.py tests/test_f02_evidence.py tests/test_f01_foundation.py -q` |
 | F06 真实模型 | `rtk proxy .venv/bin/python -m pytest tests/test_f06_local_model.py -m local_model --local-model-config local/model.toml -q` |
-| F07 | `rtk proxy .venv/bin/python -m pytest tests/test_f07_diagnosis.py tests/test_f04_rules_decisions.py tests/test_f05_incidents.py tests/test_f06_analyst.py -q` |
+| F07 | `rtk proxy .venv/bin/python -m pytest tests/test_f07_diagnosis.py tests/test_f04_decisions.py tests/test_f05_incidents.py tests/test_f06_analyst.py -q` |
 | F08 | `rtk proxy .venv/bin/python -m pytest tests/test_f08_repair.py tests/test_f07_diagnosis.py -q` |
 | F09 | `rtk proxy .venv/bin/python -m pytest tests/test_f09_reporting.py tests/test_f08_repair.py -q` |
 | F10 | `rtk proxy .venv/bin/python -m pytest tests/test_f10_cli.py tests/test_f10_packaging.py -q` |
@@ -85,19 +75,15 @@ rtk proxy git diff --check
 
 审查者核对清单与当前字节，复跑功能与依赖用例，再选取影响用户目标的独立负例。F02 的整改模式需要在后续接口中持续回归，尤其检查同一事件包多份历史文件，以及路径检查后发生父目录替换。通过后登记 accepted；有偏差时登记 changes_requested 并给出具体位置和复现。
 
-可直接交给下一位实现模型的任务如下。
-
-> 只领取 F03。先读执行计划、公共契约 r3、接口矩阵和 F03 规格，复用已验收的 F02 接口。完成 F03-01～14，运行 F01/F02 回归，记录命令、退出码、日志、目标树摘要与 tested-files.json。交接到 local/handoffs/F03.md，建议 ready_for_review，由审查者复跑后登记 accepted。
-
 ## 完整工作流发布门槛
 
-- [ ] F03–F10 逐项 accepted，所有 needs_recheck 和整改项关闭。
-- [ ] 全部基础测试通过，必需的 skipped 和 not_run 均已补齐。
-- [ ] F06 的 7 个真实案例各 3 次及人工复核通过，F10-06 正式 CLI 真实运行通过。
-- [ ] audit/diagnose 的 complete、partial、failed 和参数错误分别对应 0、3、1、2，JSON、报告及进程结果一致。
-- [ ] Diff 只覆盖批准范围，原项目全程只读，预检后复核基准文件摘要。
-- [ ] wheel 离线构建、资源检查、临时 venv 安装与两个入口通过，安装后结果与源码运行一致。
-- [ ] README 和旧 API 示例依据真实 CLI 结果更新，保留旧格式与合成标记。
+- [ ] F03–F10 完成最终本地复核。F06 的规则清理语义质量仍待整改，F10 待整体验收。
+- [x] 当前基础与专项机械测试通过。
+- [ ] 规则清理的正负例通过，并用最终源码复跑 F06 七组各三次和 F10-06。v11 快照的正式套件通过已留档。
+- [x] audit/diagnose 的 complete、partial、failed 和参数错误分别对应 0、3、1、2，JSON、报告及进程结果一致。
+- [x] Diff 覆盖批准范围，实际预检前后原项目摘要一致。
+- [x] wheel 离线构建、资源检查、临时 venv 安装与两个入口通过，安装后结果与源码运行一致。
+- [x] README 和旧 API 示例依据真实 CLI 结果更新，保留旧格式与合成标记。
 - [ ] 发布文件与最后一次测试清单一致，公开内容检查通过，记录最终提交与远端结果。
 
-当下的开发快照发布后，继续从 F03 推进。完整工作流达到本节条件后再更新公开状态与使用示例。
+本轮不处理发布。完整工作流达到上述验收条件后，再按届时用户要求决定提交与发布。

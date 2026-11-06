@@ -32,6 +32,7 @@ def build_artifacts(
     *,
     trace: Sequence[TraceEvent] = (),
     incident_analysis: IncidentAnalysis | None = None,
+    inspection_result: InspectionResult | None = None,
     clock: Callable[[], datetime] | None = None,
 ) -> ArtifactBundle: ...
 
@@ -43,11 +44,14 @@ def write_run_artifacts(
     *,
     trace: Sequence[TraceEvent] = (),
     incident_analysis: IncidentAnalysis | None = None,
+    inspection_result: InspectionResult | None = None,
     clock: Callable[[], datetime] | None = None,
 ) -> RunArtifacts: ...
 ```
 
 `build_artifacts` 在内存中完成全部校验、排序和渲染，不写磁盘，供测试检查 Markdown 与 JSON 是否来自同一份数据。`write_run_artifacts` 先调用它并透传 trace 和事件分析，再把结果原子写入 `output_root/<run_id>/`。`clock` 只用于测试和可复现运行，默认取当前 UTC 时间；一次运行内所有时间字段使用同一个采样值。
+
+本轮正式接线增加可选 `inspection_result`：输出 `inspection.json` 并在报告显示规则清单、作用范围与加载预期，使 F03 结果在 CLI 可见。它必须绑定同一 run_id，仍不等于实际加载证明。
 
 原接口 `write_run_artifacts(run_result, output_root)` 增加证据目录参数，原因是报告链接和摘要复核必须绑定本次运行的实际快照，不能依赖模块级状态或重新访问原项目。
 

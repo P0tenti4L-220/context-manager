@@ -38,6 +38,8 @@ CLI 决策登记中的所有 `source_ref`（含确认与批准条目）使用 `S
 `EditApproval` 必填 `decision_id`、`target_path`、`operation: replace_span/delete_span`、`line_start`、`line_end`、`old_text_sha256`、`replacement_sha256`、非空 `rule_ids`。可选 `valid_until` 默认 null。该记录只能批准同一 `Confirmation.approved_items` 中已确认的决策。校验时 `as_of >= valid_until` 为过期。
 
 - `old_text_sha256` 取基准快照目标行段的原始字节摘要。`replacement_sha256` 取 F08 按目标编码、换行和文件末尾规则处理后的实际替换字节。删除使用空字节的 SHA-256。
+
+首行带 UTF-8 BOM 时，F02 的原始行段及 `old_text_sha256` 包含这三个字节。F08 将 BOM 作为不变的编码前缀保留，`replacement_sha256` 不包含这个保留前缀；删除首行也保留 BOM，批准的删除正文仍为空字节。此项澄清与 F02 现有字节索引一致，不改变 JSON 版本。
 - `approval_key` 对上述八个必填字段的 JSON 对象计算 SHA-256。使用 UTF-8、`ensure_ascii=False`、键排序、无空格分隔符、无末尾换行，`rule_ids` 按 UTF-8 字节序排序且不重复。有效期单独校验。
 - 每个授权决策都要匹配改法。F04 同时验证确认来源、条目和决策有效性。缺失、过期或不匹配返回 `needs_confirmation`。解释确认只确认解释；改法批准仍不能替代 F07 证据门槛、F08 路径白名单、义务保留及预检。
 
@@ -65,6 +67,8 @@ Agent 动作限于 `list_evidence`、`read_evidence`、`submit_candidates`。F06
 
 模型候选、归档置信度和改法草图保持模型来源。模型候选经 F07 核验，结论最高为 `hypothesis/model_candidate`。静态候选用 F07 的 `StaticCandidate` 信封，F10 只机械适配事实，不升级结论。F06 的 `TraceEvent[]` 通过 F09 写入入口的关键字参数 `trace` 传递，不进入 `RunResult`。
 
+模型候选可附 `claim_type`，取 `fact`、`causal_explanation` 或 `gap`。F07 将因果解释保持为独立的假设，并用明确的缺口字段呈现无法确认的结论。
+
 ## 5. 诊断输出
 
 `Finding` 必填 `finding_id`、`kind`、`claim`、`scope: Scope`、`assessment`、`basis`、`support_refs`、`counter_refs`、`missing_evidence`、`suggested_action`、`checks: CoverageItem[]`。可选 `related_event_ids`、`related_rule_ids`、`related_finding_ids` 默认 `[]`，`claim_type: fact/causal_explanation/gap` 默认 fact，`synthetic` 默认 false。进入 F08 编辑路径的发现必须带规则 ID。
@@ -77,6 +81,8 @@ Agent 动作限于 `list_evidence`、`read_evidence`、`submit_candidates`。F06
 | `suggested_action` | `keep`、`update`、`delete`、`narrow_scope`、`relocate`、`fix_loading`、`add_check`、`fix_retrieval`、`ask_user` |
 
 `supported` 只支持该项具体声明。跨工具规则差异可以是已支持的事实，共同加载和行为因果需要各自证据。因果解释用独立 Finding 关联事实，保持 hypothesis；语义关闭时不生成模型来源或因果解释项。首版没有可信的任务要求版本材料时，`stale_code_evidence` 保持 `unknown/ask_user`。失效引用默认 `ask_user`，已核验替代目标时可建议 `update`，仍不进入 F08 的规则编辑入口。
+
+合成事件可显式提供 `code_version`。其中 `observed_ref` 和 `required_ref` 指向同一目标路径的完整包内代码快照，`decision_id` 指向事件发生时生效且已确认的版本要求。版本要求用 `code_snapshot_sha256` 约束表示，值为完整文件摘要，`conditions.relative_path` 指定目标路径。F07 还需核对观测快照确实绑定到动作输入。见 [F05](features/F05-incidents.md) 与 [F07](features/F07-diagnosis.md)。
 
 ## 6. 修复输出
 

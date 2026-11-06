@@ -163,6 +163,7 @@ def prepare_incidents(
 | `snapshot_id` | 否 | 保留事件，`missing_snapshot` 警告；不影响已解析的动作引用 |
 | `source_ref` | 否 | 保留事件，`missing_source_ref` 警告；报告标注事件原文不可回查 |
 | `scope` | 否 | 前缀数组，元素按 §2.3 的 `path` 规则校验；缺省使用包的 `task_scope`，再缺省使用 CLI 范围；实际分析取与 CLI 范围的交集 |
+| `exception_rule_ids` | 否 | 显式例外规则 ID 数组，默认空；只在 F04 确认这些规则适用且约束解析为 resolved 时输出 exception，不从路径名或文本猜测 |
 
 `action` 字段：
 
@@ -497,6 +498,12 @@ F05 的处理：
 | 修复编辑删除旧调用、删除旧符号或改正旧值 | `no_violation` / `symbol_removed` 或 `value_corrected` | `fix_removal` |
 | 兼容目录中的合法旧值 | `exception` / `exception_applied` | `exception` |
 | 路径不在适用范围 | `not_applicable` / `out_of_scope` | `out_of_scope` |
+
+### 6.5 代码版本对照
+
+事件可带 `code_version: {observed_ref, required_ref, decision_id}`。`observed_ref` 必填，另外两项可省略。两个引用使用包内 `file_ref`，由 F05 绑定到 `action.target_path` 的完整代码快照。F07 核对 `observed_ref` 与编辑的 `before_ref` 或工具结果的 `result_ref` 相同，再检查 `decision_id` 对目标路径的版本要求。该对照不会增加行为违规或复发计数。
+
+版本要求复用已确认的登记决策。约束的 `subject` 为 `code_snapshot_sha256`，`operator` 为 `equals`，`value` 为要求版本的全文件 SHA-256，`conditions` 为 `{"relative_path": "clients/app.py"}` 这类精确路径绑定。版本材料缺失、决定未生效或相互矛盾时保留未知。
 | 只在 diff / 注释中出现 v1，实际常量为 v2 | `no_violation` / `claim_contradicted_by_source` | `text_claim_only` |
 | 动作只有 `added_literal` 等自述 | `clue_only` / `claim_only` | `unverified_claim` |
 | 未确认检查或模型建议的检查 | 不生成观察，记缺口 | `unconfirmed_check` |
@@ -760,7 +767,7 @@ F05 不读取决策登记 JSON，也不自行解释 `Decision`；它只消费 F0
 ## 12. 本地测试
 
 ```sh
-.venv/bin/python -m pytest tests/test_f05_incidents.py tests/test_f04_rules_decisions.py tests/test_f02_evidence.py -q
+.venv/bin/python -m pytest tests/test_f05_incidents.py tests/test_f04_decisions.py tests/test_f02_evidence.py -q
 .venv/bin/python -m compileall -q src/context_manager
 ```
 

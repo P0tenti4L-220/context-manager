@@ -38,8 +38,13 @@ def evaluate_findings(
     incidents: IncidentView,
     receipts: ReceiptView,
     evidence_store: EvidenceStore,
+    *,
+    inspection=None,
+    model_reads=(),
 ) -> DiagnosisResult: ...
 ```
+
+`inspection` 是 F03 本次只读视图，用于回查缺失引用等事实；`model_reads` 是 F06 本次调用的实际读取记录。F02 全局读取日志可能含 Inspector 的读取，不能单独证明正文送给了模型。未提供或未覆盖模型引用时拒绝该候选，不继承其他调用的已读状态。
 
 `DiagnosisResult` 至少包含：
 
@@ -278,6 +283,7 @@ F04 的 `compare_constraint_pair` 返回：`compatible` / `incompatible` / `unre
 - 历史诊断：规则取事件时点可核对的历史快照；若只有当前规则且摘要不同，加载/过时结论为 `unknown`，不得用当前文本反推当时加载。
 - 事件早于决策生效时间：该事件不产生 `stale_rule`；当前 `as_of` 的体检仍可单独产生当前规则过时项。
 - `stale_code_evidence` 必须同时拿到实际使用的代码快照和任务要求版本；只有一侧时输出 `unknown` 和 `ask_user`。
+- 合成事件的可选 `code_version` 采用 F05 绑定后的完整快照。实际快照须与动作的编辑前快照或工具结果相同。已确认且在事件时点生效的 `code_snapshot_sha256` 约束须绑定同一路径与要求摘要。两个摘要不一致时报告 `fix_retrieval`，没有可用或一致的权威版本时列出缺口。
 - 文件修改时间、Git 提交时间只用于追踪，不用于建立替代或权威。
 
 ### 复发细节
@@ -292,6 +298,7 @@ F04 的 `compare_constraint_pair` 返回：`compatible` / `incompatible` / `unre
 
 - 只来自语义模式或 F04 的语义建议；引用必须指向具体行段。
 - 冗余、进度材料、规则迁移都属于语义判断，v1 不因模型自信而升级为 supported。
+- `relocate` 将 F06 的迁移理由附到候选声明后，供报告和 F08 的 `migrate_clause` 建议引用。无决策体检的声明保留快照中的任务名称或编号、实际状态和一次性下一步。
 - 建议动作只允许 `keep`、`relocate`、`ask_user`；不得直接 `delete`/`update`，删除与改写交给 F04/F08 的确认流程。
 - 必须保留独立义务、兼容例外和来源；反证可见。
 
@@ -375,7 +382,7 @@ F07 的异常边界：
 
 ```sh
 .venv/bin/python -m compileall -q src/context_manager
-.venv/bin/python -m pytest tests/test_f07_diagnosis.py tests/test_f04_rules_decisions.py tests/test_f05_incidents.py tests/test_f06_analyst.py -q
+.venv/bin/python -m pytest tests/test_f07_diagnosis.py tests/test_f04_decisions.py tests/test_f05_incidents.py tests/test_f06_analyst.py -q
 ```
 
 ### 测试构造要求

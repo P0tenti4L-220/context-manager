@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import stat
 from dataclasses import dataclass, fields, is_dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -57,8 +58,22 @@ class _FrozenDict(Mapping[str, Any]):
     __slots__ = ("_data", "_hash")
 
     def __init__(self, data: Mapping[str, Any]) -> None:
-        object.__setattr__(self, "_data", dict(data))
+        if hasattr(self, "_data"):
+            raise TypeError("contract payload is read-only")
+        object.__setattr__(self, "_data", MappingProxyType(dict(data)))
         object.__setattr__(self, "_hash", None)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise TypeError("contract payload is read-only")
+
+    def __delattr__(self, name: str) -> None:
+        raise TypeError("contract payload is read-only")
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
 
     def __getitem__(self, key: str) -> Any:
         return self._data[key]
@@ -2803,13 +2818,19 @@ def _reject_non_finite(value: Any) -> None:
             _reject_non_finite(item)
 
 
-def load_json(path: str | os.PathLike[str], *, max_bytes: int = 32 * 1024 * 1024) -> Any:
-    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0:
-        raise ValueError("max_bytes must be a non-negative integer")
-    raw: bytes
+def _read_regular_input(path: str | os.PathLike[str], max_bytes: int) -> bytes:
+    """Preflight selected bytes without following a final symlink or opening a FIFO."""
     try:
-        with open(path, "rb") as handle:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as handle:
+            before = os.fstat(handle.fileno())
+            if not stat.S_ISREG(before.st_mode):
+                raise _json_error("input_not_found", "input path is not a regular file")
             raw = handle.read(max_bytes + 1)
+            after = os.fstat(handle.fileno())
+            signature = lambda st: (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+            if signature(before) != signature(after):
+                raise _json_error("input_not_found", "input changed while being read")
     except FileNotFoundError as exc:
         raise _json_error("input_not_found", "input file does not exist") from exc
     except IsADirectoryError as exc:
@@ -2820,6 +2841,13 @@ def load_json(path: str | os.PathLike[str], *, max_bytes: int = 32 * 1024 * 1024
         raise _json_error("input_not_found", "input file could not be read") from exc
     if len(raw) > max_bytes:
         raise _json_error("input_too_large", "input exceeds the maximum allowed size")
+    return raw
+
+
+def load_json(path: str | os.PathLike[str], *, max_bytes: int = 32 * 1024 * 1024) -> Any:
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0:
+        raise ValueError("max_bytes must be a non-negative integer")
+    raw = _read_regular_input(path, max_bytes)
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
@@ -2954,6 +2982,21 @@ def resolve_cli_path(value: str | os.PathLike[str], cwd: str | os.PathLike[str])
         raise ValueError("path could not be resolved") from exc
 
 
+def _resolve_selected_cli_path(value: str | os.PathLike[str], cwd: str | os.PathLike[str]) -> Path:
+    # Keep the final component intact so F02 can reject an explicitly selected
+    # symlink. Canonicalizing the whole path first would hide that input alias.
+    text = os.fspath(value)
+    if not text or "\x00" in text:
+        raise ValueError("path is invalid")
+    path = Path(text)
+    if not path.is_absolute():
+        path = Path(cwd) / path
+    try:
+        return path.parent.resolve(strict=False) / path.name
+    except (OSError, ValueError) as exc:
+        raise ValueError("path could not be resolved") from exc
+
+
 def _ns_get(namespace: Any, key: str, default: Any = None) -> Any:
     if isinstance(namespace, Mapping):
         return namespace.get(key, default)
@@ -3051,7 +3094,7 @@ def build_request(namespace: Any, cwd: str | os.PathLike[str]) -> AuditRequest:
     model_config_path: Path | None = None
     if model_config_raw not in (None, ""):
         try:
-            model_config_path = resolve_cli_path(model_config_raw, cwd)
+            model_config_path = _resolve_selected_cli_path(model_config_raw, cwd)
         except ValueError as exc:
             raise _cli_error(
                 "invalid_argument", "model_config", "model config path is invalid", "path", "string"
@@ -3079,7 +3122,7 @@ def build_request(namespace: Any, cwd: str | os.PathLike[str]) -> AuditRequest:
         if decisions_raw == "":
             raise _cli_error("empty_path", "decisions", "decisions path must not be empty", "path", "string")
         try:
-            decision_path = resolve_cli_path(decisions_raw, cwd)
+            decision_path = _resolve_selected_cli_path(decisions_raw, cwd)
         except ValueError as exc:
             raise _cli_error(
                 "invalid_argument", "decisions", "decisions path is invalid", "path", "string"
@@ -3108,21 +3151,18 @@ def build_request(namespace: Any, cwd: str | os.PathLike[str]) -> AuditRequest:
                 "invalid_argument", "case", "--case is only valid for diagnose", "null", "string"
             )
         try:
-            case_path = resolve_cli_path(case_raw, cwd)
+            case_path = _resolve_selected_cli_path(case_raw, cwd)
         except ValueError as exc:
             raise _cli_error("invalid_argument", "case", "case path is invalid", "path", "string") from exc
-        if not case_path.is_file():
-            raise _cli_error("input_not_found", "case", "case file does not exist", "file", "missing")
         try:
-            with open(case_path, "rb") as handle:
-                handle.read(0)
-        except OSError as exc:
-            raise _cli_error("input_not_found", "case", "case file is not readable", "file", "unreadable") from exc
+            _read_regular_input(case_path, 10 * 1024 * 1024)
+        except ContractError as exc:
+            raise _cli_error(exc.code, "case", "case file is unavailable, unsafe or oversized") from exc
 
     harness_profile_path: Path | None = None
     if harness_profile_raw not in (None, ""):
         try:
-            harness_profile_path = resolve_cli_path(harness_profile_raw, cwd)
+            harness_profile_path = _resolve_selected_cli_path(harness_profile_raw, cwd)
         except ValueError as exc:
             raise _cli_error(
                 "invalid_argument", "harness_profile", "harness profile path is invalid", "path", "string"

@@ -1,25 +1,25 @@
 # 执行计划与当前状态
 
-本文件是实现与审查的统一记录。新模型接手时先读取本文件，再阅读当前功能规格。总体设计版本 `0.2`，跨功能契约修订 `r3`，最后更新 `2026-11-05`。
+本文件是实现与审查的统一记录。接手后先阅读本文件，再核对当前功能规格。总体设计版本 `0.2`，公共契约维持 JSON v1，最后更新 `2026-11-06`。
 
 ## 当前状态
 
 | 项目 | 当前值 |
 | --- | --- |
-| 当前阶段 | F02-H02 已复核 accepted，F03 可领取实现 |
+| 当前阶段 | F01–F10 首版在 v28 源码上完成本机验收 |
 | 专项设计交接 | 十份交接已收齐，保存在 `local/design-handoffs/` |
-| 下个实现验收项 | F03，完成规则文件发现、作用范围、失效引用和命令检查并复跑 F01/F02 回归 |
+| 复核材料 | `local/handoffs/NEXT.md`、各功能交接、当前源码摘要、原始测试日志和模型输出 |
 | 运行时架构 | 1 个只读 Context Analyst + Inspector、Evidence Store、Diagnostic Policy、Repair Planner |
 | 专项设计负责人 | 每个功能一个设计组，均已交接 |
-| 实现负责人 | F01-H02、F02-H02 已验收；F03 待领取，F04–F10 待依赖齐备 |
+| 实现负责人 | 本聊天复核当前源码并补齐缺口，保留各功能历史交接 |
 | 设计与代码复核 | 本聊天，收到功能交接后对照记录和实际代码审查 |
-| 当前实现 | F01 工程、公共契约、CLI 骨架及测试已落地；F02 证据存储、受限读取与测试已验收；实际 audit/diagnose 管线由 F10 接入 |
-| 当前 Git | 发布已验收的 F01/F02 与统一检查计划到 `main`，阶段提交以 Git 历史为准；完整工作流交付待 F10 |
+| 当前实现 | audit/diagnose 包含发现、确认决策、合成事件、语义循环、加载与版本核验、批准 Diff 和报告。见 [功能状态](docs/feature-status.md) |
+| 当前 Git | v28 首版发布目标为 GitHub `main`。本机交接记录提交和推送结果 |
 | 公开仓库 | [P0tenti4L-220/context-manager](https://github.com/P0tenti4L-220/context-manager) |
-| 功能测试 | F01 为 12 passed、1 skipped，7 个审查探针 passed；F02 为 30 passed（含 F01）、1 skipped，5 个审查探针 passed；F03–F10 not_run |
-| 真实本地模型测试 | `not_run`；本机 Ollama 0.40.14 + Qwen2.5-7B-Instruct Q4_K_M 已就绪，配置 `local/model.toml` 并完成回环冒烟，真实语义案例留待 F06 |
-| 文档检查 | 基线与 r2 检查见 D-001/D-003；r3 澄清与 F01 审查见 R-002/R-003；F02 审查与整改复核见 R-004/R-005 |
-| 提交与交付 | 当前发布 F01/F02 开发快照及 F03–F10 统一检查计划；完整工作流交付 pending |
+| 功能测试 | v28 全机械 283 passed、14 deselected，模型用例另行执行 |
+| 真实本地模型测试 | v28 清理审计 5/5、七组语义案例 21/21、F01 模型配置与 F10-06 通过 |
+| 文档检查 | F06/F07 规格和接口已对齐，当前验收结论见 R-012 |
+| 交付 | 本地工作区、验收与复跑报告、可运行合成案例和 v28 离线 wheel |
 
 ## 设计入口
 
@@ -28,6 +28,8 @@
 - [跨功能接口矩阵及变更影响](docs/interfaces.md) 固定调用方式、责任和验收映射。
 - [本地验收规范](docs/acceptance.md) 约定实际测试、源摘要和审查方式。
 - [F03–F10 统一实现与检查计划](docs/implementation-checklist.md) 汇总后续交付、命令、交接和完整工作流发布门槛。
+- [F03–F10 本轮详细执行方案](docs/f03-f10-execution-plan.md) 列出 P01–P10 的实际代码改动、完成条件和结果。
+- [功能实现与收尾缺口](docs/feature-status.md) 区分此前未实现、本轮补齐、效果待改进与尚未运行的检查。
 - [功能设计子 Agent 分工](docs/agent-assignments.md) 列出十个可同时派发的设计任务和交接方式。
 - [同类项目源码分析](docs/landscape.md) 保存架构依据。
 
@@ -37,16 +39,16 @@
 
 | ID | 功能规格 | 直接依赖 | 专项设计 | 实现状态 | 实施者 | 本地测试 | 审查 | 最近运行记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| F01 | [工程入口与公共契约](docs/features/F01-foundation.md) | 无 | 已确认 | accepted | F01-H02 | passed | accepted | R-003 |
-| F02 | [证据快照与受限读取](docs/features/F02-evidence.md) | F01 | 已确认 | accepted | F02-H02 | passed | accepted | R-005 |
-| F03 | [发现、范围与引用检查](docs/features/F03-inspection.md) | F02 | 已确认 | ready | 待领取 | not_run | pending | — |
-| F04 | [规则与决策](docs/features/F04-rules-decisions.md) | F02、F03 | 已确认 | planned | 无交接 | not_run | pending | — |
-| F05 | [事件与加载回执](docs/features/F05-incidents.md) | F02、F04 | 已确认 | planned | 无交接 | not_run | pending | — |
-| F06 | [本地语义 Agent](docs/features/F06-analyst.md) | F02、F04、F05 | 已确认 | planned | 无交接 | not_run | pending | — |
-| F07 | [证据核验与诊断](docs/features/F07-diagnosis.md) | F03–F06 | 已确认 | planned | 无交接 | not_run | pending | — |
-| F08 | [修复 Diff 预检](docs/features/F08-repair.md) | F04、F07 | 已确认 | planned | 无交接 | not_run | pending | — |
-| F09 | [报告与运行产物](docs/features/F09-reporting.md) | F02、F07、F08 | 已确认 | planned | 无交接 | not_run | pending | — |
-| F10 | [CLI 集成与最终交付](docs/features/F10-integration.md) | F01–F09 | 已确认 | planned | 无交接 | not_run | pending | — |
+| F01 | [工程入口与公共契约](docs/features/F01-foundation.md) | 无 | 已确认 | accepted | 本聊天 / H03 | F01-01～12 与模型配置探针 passed | v28 入口与契约复验通过 | R-012 |
+| F02 | [证据快照与受限读取](docs/features/F02-evidence.md) | F01 | 已确认 | accepted | 本聊天 / H03 | F02-01～11 passed | v28 机械回归和快照重开通过 | R-012 |
+| F03 | [发现、范围与引用检查](docs/features/F03-inspection.md) | F02 | 已确认 | accepted | 本聊天 / H03 | F03-01～14 passed | v28 机械回归通过 | R-012 |
+| F04 | [规则与决策](docs/features/F04-rules-decisions.md) | F02、F03 | 已确认 | accepted | 本聊天 / H03 | F04-01～11 passed | v28 机械回归和决策范围通过 | R-012 |
+| F05 | [事件与加载回执](docs/features/F05-incidents.md) | F02、F04 | 已确认 | accepted | 本聊天 / H03 | F05-01～15 passed | v28 机械回归通过 | R-012 |
+| F06 | [本地语义 Agent](docs/features/F06-analyst.md) | F02、F04、F05 | 已确认 | accepted | 本聊天 / H06 | F06-01～13、五组审计、七组各三次 passed | v28 逐份复核引用、清理与候选范围 | R-012 |
+| F07 | [证据核验与诊断](docs/features/F07-diagnosis.md) | F03–F06 | 已确认 | accepted | 本聊天 / H06 | F07-01～18 与真实 CLI 联调 passed | 已核对迁移理由、假设等级与确定性证据 | R-012 |
+| F08 | [修复 Diff 预检](docs/features/F08-repair.md) | F04、F07 | 已确认 | accepted | 本聊天 / H05 | F08-01～12、迁移建议及批准 Diff passed | 迁移需确认，批准预览保留独立义务 | R-012 |
+| F09 | [报告与运行产物](docs/features/F09-reporting.md) | F02、F07、F08 | 已确认 | accepted | 本聊天 / H04 | F09-01～12、六份正式模型报告 passed | 引用、追踪、清单与重开复核通过 | R-012 |
+| F10 | [CLI 集成与最终交付](docs/features/F10-integration.md) | F01–F09 | 已确认 | accepted | 本聊天 / H06 | F10-01～13、离线双入口 passed | v28 正式模型、同源安装与完整合成诊断通过 | R-012 |
 
 ## 状态更新规则
 
@@ -57,6 +59,7 @@
 | planned | 专项设计待确认或依赖尚未审查通过 | 准备夹具和环境 |
 | ready | 专项设计已确认，依赖均 accepted | 登记实施者后开始 |
 | in_progress | 正在实现或修复自测失败 | 写代码并执行本地测试 |
+| implemented_pending_review | 按用户功能优先指令，主流程代码已接通并做必要运行检查；专项验收后补 | 改进已观察问题，补专项检查，之后 ready_for_review；不等同 accepted |
 | ready_for_review | 本项测试与必要回归通过，实际记录和源摘要完整 | 本聊天复核 |
 | changes_requested | 审查发现偏差、缺测试或记录与代码不符 | 修改并复跑 |
 | accepted | 审查者检查实际代码并完成针对性复跑，符合规格 | 开启下一项 |
@@ -189,31 +192,73 @@ passed / failed / skipped 数量及跳过原因
 - 阶段提交包括公开源码、测试、合成夹具、文档和项目元数据。`local/`、虚拟环境、模型权重/配置、原始验收日志和构建缓存按忽略规则保留在本机。
 - 本次阶段提交和远端一致性由发布日志记录；完整工作流最终交付表继续保持未完成项。
 
-## 下一阶段与完整工作流排期
+### R-007 功能优先补齐与正式主链检查
 
-以下为规划估计。假设同一实现模型持续推进、交接及时复核、本机模型环境顺利，剩余完整工作流按约 `5–10 个工作日` 安排。模型适配和联调返工可能延长，F06 验收后再依据实际速度更新估计。
+- 日期为 `2026-11-05`。按用户最新要求，优先补齐现有正式功能，不另建体验版，完整专项测试留待后续，并停止 GitHub 操作。实施阶段提前联调，未改变 accepted 的含义。
+- 实际检查此前仅有 F01/F02 源码，合法 audit/diagnose 均直接返回 not_implemented。F03–F10 的主要问题是未实现，而非单纯测试未跑。
+- 已新增 Inspector、规则块与登记绑定、生效策略、合成事件与回执、AST/结构化行为检查、独立任务计数、本地传输与只读循环、证据诊断、精确批准与临时 Diff、报告和正式管线。CLI 已替换占位分支；默认 off 不构造传输；出现运行阶段异常时写 failed 报告。
+- 本机现有非模型检查为 `39 passed, 1 deselected`，含 9 项工作流检查；批准 Diff 实际在临时仓库检查并应用，源项目字节不变。wheel 离线构建、包内提示词、独立环境安装、安装后的模块 audit 与控制台 diagnose 均有实际退出 0 记录。最初构建缺少 wheel，已补齐构建依赖后重跑通过。
+- 正式本机模型冒烟完成 3 次调用（list/read/submit），最新一次循环 complete/0、约 31 秒；保留义务仍被列为 cleanup_candidate/keep，引用有效但属于候选噪声。语义质量未验收通过。最早的传输失败和候选拒绝均保留记录，不能隐去后只报成功。
+- 原始材料位于 `local/verification/feature-completion-20261105/`，包含命令、退出码、日志、源码摘要、wheel 与模型运行目录。F03–F10 交接分别位于 `local/handoffs/Fxx.md`。
+- 增加 `inspection.json` 与报告规则清单，使 F03 的结构化结果在正式 CLI 可见；F05 额外接受显式 `exception_rule_ids`，仅通过已确认规则范围解析例外，不从目录名猜测。
+- F03–F10 标记 implemented_pending_review。108 个专项验收编号、7 个语义案例各 3 次和完整独立复核仍未完成，不能全部标 accepted。详见 [功能状态](docs/feature-status.md)。
 
-| 阶段 | 工作与完成条件 |
-| --- | --- |
-| 下一项 F03 | 实现规则文件发现、作用范围、失效引用与命令检查；运行 F03-01～14 及 F01/F02 回归并交接 |
-| F04–F05 | 接通登记绑定与生效决策、合成事件与加载回执、去重和复发计数，逐项验收 |
-| F06–F07 | 准备并登记本机模型；真实完成 7 个语义案例各 3 次及人工复核；接通证据门槛与最终诊断 |
-| F08–F10 | 完成受批准的最小 Diff、临时预检、自包含报告、audit/diagnose 串联、wheel 离线构建和安装、端到端验收 |
-| 完整工作流发布 | F01–F10 均 accepted，基础测试、真实模型、CLI 和打包验收有有效记录，最终摘要与提交文件一致，公开内容检查通过，更新实际示例和 README，在已发布的开发快照上继续提交 |
+### R-008 F03–F10 详细方案与代码补强
+
+- 日期为 `2026-11-05`。已写入 [P01–P10 执行方案](docs/f03-f10-execution-plan.md)，按用户指令继续完善现有正式模块，不处理 GitHub。
+- 深层封存公开组件结果、F04 缓存和开放 payload；分离规则固有范围与任务排除，统一 profile 校验，修正 frontmatter、导入深度及引用。登记绑定按条目原子完成，主体、条件、标量类型、时点及已被替代的决策均进入权威门槛。
+- F05 检测结果绑定实际动作 after 快照与 path；F07 复核真实发现、历史策略、加载回执、行为与分组，并用逻辑证据生成稳定 ID；F08 重新核对未替代义务、BOM/换行与多编辑整体状态；F09 验证快照、Diff 和 trace，排他逐文件落盘，写失败保留 incomplete。
+- F10 预检保留末级输入路径供 F02 拒绝链接，JSON 预读不阻塞 FIFO。当前 F01 源码发生共享行为变化，基础回归虽通过，历史 accepted 不能代替当前字节的重新复核。F02 源码未改，相关回归通过。
+- 实际新增 24 个缺陷回归；全体现有非模型结果 `63 passed, 1 deselected`。compileall、diff --check、离线 wheel、独立 venv、两个安装入口、安装与源码 audit 等价、报告清单和目标项目只读均通过。最终命令及摘要在 `local/verification/f03-f10-hardening-20261105/delivery-recorded/`。
+- 真实本机复跑还发现未读空提交，以及全局已读覆盖可能混入 Inspector 读取；已补本次模型读取门槛和回归。提示词 v3 下临时进度正例完成读取并形成 relocate/hypothesis；有效义务负例实际读取后因候选 evidence_id 契约错误返回 partial，无最终问题。这是已观察到的输出稳定性缺口，不能只列“测试没跑”。语义材料绑定同轮 delivery-final 清单，之后代码仅补候选拒绝 trace。
+- 先前沙箱传输失败、提示词 v2 的未读空结果/keep 正例与 v3 的负例 partial 均保留本机记录；完整 108 项矩阵、7×3 语义案例和独立符合性复核未完成。F03–F10 仍为 implemented_pending_review，详见[功能状态](docs/feature-status.md)。H02 追加到各功能交接，不覆写 H01。
+
+### R-009 F01–F10 规格检查与上一版模型验收
+
+- 日期为 `2026-11-06`。复核正式源码、功能规格与合成输入，补齐专项测试。十个 H03 交接已写入 `local/handoffs/`，保留原交接。机械覆盖对应 130 个规格编号，剩余编号 F10-06 由真实模型测试执行。
+- F01/F02 复跑入口、公共契约、受限路径、快照破坏和重开。新存储用项目根摘要绑定。报告中的快照可独立重开，继续捕获时显式提供原项目根。
+- F03/F04 修正静态链接与 profile 顺序，隔离有环或悬空的替代授权。F05 核对独立任务、重复、合法例外及回执。F07 补齐由已确认任务版本约束支持的代码快照对照，区分加载未知、事实与因果假设。
+- F06 保持单个只读 Agent。体检与诊断选择相应提示词。修正严格 JSON 的纠正消息和读取字节预算。历史示例以及缺少独立编辑证据的复发候选进入筛除记录。模型候选的事实等级仍由 F07 控制。
+- F08/F09 核对原样保留义务、换行、重叠编辑、并发和完整性降级。正式合成案例 `complete/0`，报告支持当前过时规则和两个独立任务的复发。三条事件归为两条规范事件与一次重试，Diff 仅改已批准的路由行。旧示例实际 `partial/3`。
+- 当时机械测试为 `280 passed, 9 deselected`，退出 0。9 个本地模型标记项单独执行。日志和 60 个文件的摘要清单保存在 `local/verification/f01-f10-final-20261105/`，清单 SHA-256 为 `2b706d4d0e11bd951ea96b9811123f7765eca3884bbbb50bf730775663459008`。`mechanical-matrix.json` 关联测试编号和实际断言。
+- wheel 已离线构建并安装。源码、安装后的模块入口与控制台入口均运行同一合成 diagnose，退出 0。以逻辑路径核对证据后，发现、覆盖、Diff 字节和事件计数相同。详细命令在同目录的 `commands.jsonl`，wheel 在 `packaging/`。
+- v11 下七组固定合成案例和 F10-06 的 pytest 子命令为 `8 passed, 18 deselected`。21 次达到最终候选断言，引用和源项目字节复核通过。正式 CLI 实跑 `complete/0`，模型候选为 `hypothesis`。F01 模型配置探针另行通过。组合命令继续执行规则清理探针，两项失败，因此组合退出 1。
+- 早期连接中断、非 JSON 动作及错误分类保留原始日志。v11 模型将历史示例和同任务重试分别误标三次，机械门槛拦截全部六项。`semantic-review.md` 记录逐份复核及各输出目录。复合规则模型候选建议更新且引用完整，精确改法由 F08 的授权正例验证。
+
+### R-010 当前工作区接手记录
+
+- 日期为 `2026-11-06`。按用户要求在当前实现收尾，v14 接手顺序、复现命令、源码和原始证据见 `local/handoffs/NEXT-v14.md`。
+- 当前 v14 机械回归 `280 passed, 9 deselected`，退出 0。61 个文件摘要清单的 SHA-256 为 `f80a58d418e763f87986dc295ebd7dee21fc059b4974e2eee41e4232e4a5d5ec`。原始日志为 `local/verification/f01-f10-final-20261105/20261106T064205993968Z-mechanical-v14.log`，对应 `-tested-files.json` 记录全部条目。
+- 当前离线 wheel 已重新构建和独立安装。源代码、安装后模块和控制台执行同一合成诊断均得到 `complete/0`，发现、覆盖、Diff 字节和事件计数一致。记录见同目录 `20261106T064606585317Z-handoff-installed-final.log`，语法编译退出 0。
+- F06 无决策的体检使用单独的 `instruction_review.md`，与有决策体检和诊断共用一个只读 Agent。v14 的两个清理探针均完成工具循环，但负例错误建议迁移两条有效义务，正例的临时进度候选逐字复述且没有理由，被质量门槛筛除。组合退出 1，原始输出见 `20261106T064206791458Z-cleanup-v14.log` 及 `cleanup-20261106T064207Z/`。F06 保持 `changes_requested`。
+- F07 显式记录关闭语义时拒绝模型候选，F08 把有效迁移建议映射为 `migrate_clause`。两项机械回归已通过。修好 F06 后用正式 CLI 验证 `relocate`、迁移建议和原项目只读，再按最终源码复跑 7×3 和 F10-06。F10 机械与安装验收已有证据，完整交付仍待复核。
+
+### R-011 F06 整改与当前交接
+
+- 日期为 `2026-11-06`。本条记录 v23，原交接见 `local/handoffs/NEXT-v23.md`。F06 将无决策的审阅材料限到规则文件和文档快照，以绝对行号展示已读正文。模型先分类，程序映射到既有候选种类与动作。迁移候选需提供理由，F07 将理由并入报告和建议摘要。
+- v23 定向机械 `63 passed, 3 deselected`，退出 0。五组正式本机模型审计 `1 passed, 4 failed`，退出 1。五次 CLI 都为 `complete/0`，快照引用检查通过，项目字节不变。真冲突通过，有效义务和历史示例误报，重复误给迁移动作，临时进度已产生 `relocate/hypothesis` 和 `migrate_clause`，claim 缺少具体任务编号。
+- 63 个源码、提示词、测试和夹具的摘要与当前工作树匹配。清单 SHA-256 为 `c46f0521cd58666b18b7b254a63d0ac20d21af242d97a97217ee3a5ea533a35d`。原始记录位于 `local/verification/f01-f10-final-20261105/`，分别为 `20261106T134947870952Z-handoff-v23-runner.log` 和 `20261106T072837986589Z-cleanup-audit-v23.log`。逐份报告、原始回复和复跑命令由接手报告索引。
+- F06 仍为 `changes_requested`。F07 的迁移理由投影及 F08/F09 下游产物列为 `needs_recheck`。v23 全机械、完整 7×3、F01 模型配置探针、F10-06 和重新打包安装为 `not_run`。历史通过和失败记录继续保留。
+
+### R-012 v28 首版本机验收
+
+- 日期为 `2026-11-06`。无决策体检由同一个只读 Analyst 分别提取任务记录与比较现行规则。文档及区块编号都回绑到已读快照。迁移声明保留 `TASK-42`、已关闭和待发审查链接，附归档理由。重复和冲突引用两条规则并待确认。有效义务和历史示例通过保留断言。
+- 有决策体检以规则和决策原文为审阅对象，登记提供结构化状态和范围。复合规则三次候选均写明只替换路由，保留测试和 `legacy/`。公共契约维持 JSON v1，F06/F07 规格、接口和对应验收已对齐。
+- 全机械 **283 passed、14 deselected**，130 项规格机械编号有本次断言。真实模型清理审计 **5 passed**，七组语义各运行三次，**21/21** 通过并逐份复核。F01 配置探针和 F10-06 **2 passed**。重试负例三次原始误标由独立编辑证据门槛筛除。
+- F10-06 以 `complete/0` 结束。模型假设引用实际读取的旧规则，确定性发现同时引用旧规则与批准决策。已批准 Diff 仅替换路由并在临时副本应用，保留测试。离线 wheel 的模块、控制台和源码入口生成等价发现、覆盖、Diff 和事件计数。
+- 上述验收和语法编译均以 0 退出，绑定同一 64 文件清单，SHA-256 `595adcc27e11f9806728fc21bd16f6ccbe6325f8bcb8354d4f99a7d664840669`。复核者逐项核对当前字节、命令与原始产物。v23–v27 的失败及探针保留在原始记录。
+- 审查结论为 F06–F10 `accepted`，F01–F05 复验通过并维持 `accepted`。交付范围为本地 CLI、合成输入和当前本机模型。具体命令、输出、源码清单和 wheel 见 `local/handoffs/NEXT.md` 与 `local/verification/f01-f10-final-20261105/review-v28.md`。
 
 ## 最终交付记录
 
 | 条件 | 当前结果 |
 | --- | --- |
-| F01–F09 全部 accepted | not_run |
-| F10 CLI 和本地打包验收 | not_run |
-| 全部基础测试 | not_run |
-| 实际本地模型语义案例 | not_run |
-| 最终代码和测试摘要一致 | not_run |
-| 所有需改进审查项已关闭 | not_run |
-| 最终代码公开内容检查 | not_run |
-| 最终提交 SHA | pending |
-| 远端发布/合并结果 | pending |
+| F01–F09 功能复核 | v28 `accepted`，专项与受影响链路均已复验 |
+| F10 CLI 和本地打包 | F10-06、离线构建安装、源码及安装后双入口等价检查通过 |
+| 基础、专项与工作流检查 | v28 283 passed、14 deselected。130 个机械编号有实际断言 |
+| 实际本地模型语义案例 | 五组清理审计、七组各三次、F01 配置和 F10-06 均通过 |
+| 测试与源码摘要 | 原始日志、编号映射、逐份复核与 64 文件摘要已保存 |
+| 交接位置 | 本地工作区，入口为 `local/handoffs/NEXT.md` |
 
 ## 后续阶段
 

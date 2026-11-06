@@ -36,7 +36,8 @@ class EvidenceStore:
     @classmethod
     def open_existing(cls, run_dir, *,
                       limits: EvidenceLimits | None = None,
-                      clock: Callable[[], datetime] | None = None) -> "EvidenceStore": ...
+                      clock: Callable[[], datetime] | None = None,
+                      project_root: str | os.PathLike[str] | None = None) -> "EvidenceStore": ...
 
     def capture_file(self, relative_path: str, *, kind: str = "document",
                      source_revision: str | None = None,
@@ -240,7 +241,7 @@ store.close()
 - 索引行和读取日志在文件锁（`fcntl.flock`）下整行追加；`index.json` 用临时文件加替换物化。
 - 若目标快照目录已存在且内容摘要与本次字节不符，返回 `evidence_snapshot_corrupt`，不覆盖。捕获失败不留下可读快照目录。
 - 已有证据的 `content.bin` 永不重写。重复捕获相同内容只递增 `meta.json` 里的 `capture_count`。
-- `close()` 幂等：写出 `index.json`、关闭句柄。`open_existing(run_dir)` 从 `_store.json` 读回项目根、限制和创建时间，加载 `index.jsonl` 与 `index.json` 的并集以及 `reads.jsonl`、`coverage.jsonl`，序号从最大值继续，`covered_ranges` 与已有覆盖项在重开后仍可用。
+- `close()` 幂等。它写出 `index.json` 并关闭句柄。`open_existing(run_dir)` 从 `_store.json` 恢复限制和创建时间，加载索引、读取与覆盖记录。要继续捕获项目文件，调用方显式提供匹配本次运行的 `project_root`，序号从最大值继续。已归档快照可以在原项目移走后读取。
 
 ## 捕获规则
 
@@ -259,7 +260,7 @@ store.close()
 - `run_id` 必须匹配 `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`，否则 `evidence_run_id_invalid`。
 - 输出根按 `Path.resolve()` 解析，允许尚不存在；与解析后的项目根互相不得包含，也不得相等，对应错误见上表。通过后按需创建 `<out>/<run_id>/evidence/`。
 - 运行目录已有 `_store.json` 时，若 `run_id`、项目根一致则继续使用并追加记录；不一致返回 `evidence_run_conflict`，不覆盖已有产物。
-- `_store.json` 记录 `schema_version`、`run_id`、`project_root`、`created_at`、`limits`、工具版本，供 `open_existing` 恢复。
+- 新运行的 `_store.json` 记录 `schema_version`、`run_id`、`project_root_sha256`、`created_at`、`limits` 和工具版本，`project_root` 为 `null`。根目录摘要用于校验显式重绑，避免把机器上的绝对项目路径带入报告包。旧元数据仍可重开。
 
 ### 上限
 
